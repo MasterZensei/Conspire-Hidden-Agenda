@@ -523,9 +523,7 @@ export function handleCounterAction(
 
 // Resolve a block that was not challenged
 export function resolveBlock(
-  gameState: GameState,
-  blockerId: string,
-  actionType: ActionType
+  gameState: GameState
 ): GameState {
   const newState: GameState = JSON.parse(JSON.stringify(gameState));
   
