@@ -1,8 +1,8 @@
 import { createClient, User } from '@supabase/supabase-js';
 
 // Supabase environment variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+export const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl) {
   throw new Error("VITE_SUPABASE_URL is not defined in .env");
@@ -216,23 +216,47 @@ export const signInAnonymously = async () => {
     
     // Generate random ID for demo user
     const randomId = Math.random().toString(36).substring(2, 11);
+    const timestamp = Date.now();
+    // Use a real test email domain that accepts any incoming email
+    const email = `test-${randomId}-${timestamp}@mailinator.com`;
+    const password = `Password${randomId}${timestamp}`;
     
-    // Create a fake demo user
-    const demoUser = {
-      id: `demo_${randomId}`,
-      email: null,
-      app_metadata: {},
-      user_metadata: { display_name: 'Demo User' },
-      aud: 'authenticated',
-      created_at: new Date().toISOString()
-    };
+    console.log(`Creating anonymous user with email: ${email}`);
     
-    console.log('Created demo user:', demoUser);
-    localStorage.setItem('demoUser', JSON.stringify(demoUser));
+    // Use Supabase's standard sign-up
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          display_name: 'Demo User'
+        }
+      }
+    });
     
-    return { user: demoUser as unknown as User, session: null };
+    if (error) {
+      console.error('Error with sign-up:', error);
+      throw error;
+    }
+    
+    if (!data.user) {
+      console.error('No user returned from sign-up');
+      throw new Error('Failed to sign up');
+    }
+    
+    console.log('Created user:', data.user);
+    
+    // Store email and password in localStorage for later use
+    try {
+      localStorage.setItem('anonymousUserEmail', email);
+      localStorage.setItem('anonymousUserPassword', password);
+    } catch (e) {
+      console.warn('Could not store credentials in localStorage', e);
+    }
+    
+    return { user: data.user, session: data.session };
   } catch (e) {
-    console.error('Unexpected error during anonymous sign-in:', e);
+    console.error('Unexpected error during sign-up:', e);
     throw e;
   }
 };

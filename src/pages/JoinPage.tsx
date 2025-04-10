@@ -2,7 +2,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
-import { supabase, localGameStorage } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 import { useLobbies } from '../hooks/useSupabase';
 
 export default function JoinPage() {
@@ -14,9 +14,6 @@ export default function JoinPage() {
   const [isJoining, setIsJoining] = useState(false);
   const [name, setName] = useState(displayName || '');
   const [error, setError] = useState<string | null>(null);
-  const [localLobby, setLocalLobby] = useState<any | null>(null);
-  
-  const isUsingLocalLobby = user?.id?.startsWith('demo_');
   
   // Check if the lobby exists
   useEffect(() => {
@@ -25,20 +22,7 @@ export default function JoinPage() {
       return;
     }
     
-    // Check if the lobby exists in local storage for demo mode
-    if (isUsingLocalLobby) {
-      const storedLobbies = JSON.parse(localStorage.getItem('lobbies') || '[]');
-      const matchingLobby = storedLobbies.find((l: any) => l.id === lobbyId);
-      
-      if (matchingLobby) {
-        setLocalLobby(matchingLobby);
-      } else {
-        setError('Lobby not found in demo mode');
-      }
-      return;
-    }
-    
-    // Otherwise check in Supabase
+    // Check in Supabase
     async function checkLobby() {
       try {
         const { data, error } = await supabase
@@ -66,77 +50,69 @@ export default function JoinPage() {
       }
     }
     
-    if (!isUsingLocalLobby) {
-      checkLobby();
-    }
-  }, [lobbyId, isUsingLocalLobby]);
+    checkLobby();
+  }, [lobbyId]);
   
   const handleJoinLobby = async (e: FormEvent) => {
     e.preventDefault();
-    
-    if (!lobbyId) {
-      toast.error('Invalid lobby ID');
-      return;
-    }
-    
-    if (!name.trim()) {
-      toast.error('Please enter a display name');
-      return;
-    }
-    
+    setIsJoining(true);
+    setError('');
+
     try {
-      setIsJoining(true);
-      
-      // Sign in if not already signed in
+      // Sign in the user if not already signed in
       if (!user) {
         await signIn(name);
       }
-      
-      // If demo mode, join the local lobby
-      if (isUsingLocalLobby) {
-        // Join the local lobby
-        const storedLobbies = JSON.parse(localStorage.getItem('lobbies') || '[]');
-        const updatedLobbies = storedLobbies.map((l: any) => {
-          if (l.id === lobbyId) {
-            // Add the player to the lobby
-            const newPlayer = {
-              id: Math.random().toString(36).substring(2, 12),
-              user_id: user?.id || `demo_${Math.random().toString(36).substring(2, 11)}`,
-              lobby_id: lobbyId,
-              display_name: name,
-              created_at: new Date().toISOString(),
-              coins: 0,
-              cards: []
-            };
-            
-            return {
-              ...l,
-              players: [...(l.players || []), newPlayer]
-            };
-          }
-          return l;
-        });
+
+      const currentUser = await supabase.auth.getUser();
+      if (!currentUser?.data?.user) {
+        throw new Error('Failed to authenticate user');
+      }
+
+      if (!lobbyId) {
+        throw new Error('Invalid lobby ID');
+      }
+
+      // First check if the lobby exists and has room
+      const { data: lobby, error: lobbyError } = await supabase
+        .from('lobbies')
+        .select('*, players(*)')
+        .eq('id', lobbyId)
+        .eq('active', true)
+        .single();
         
-        localStorage.setItem('lobbies', JSON.stringify(updatedLobbies));
-        toast.success('Joined lobby successfully!');
-        navigate(`/lobby/${lobbyId}`);
+      if (lobbyError) {
+        toast.error('Lobby not found');
+        setError('Lobby not found');
+        setIsJoining(false);
         return;
       }
-      
-      // Join the remote lobby
-      const { data } = await supabase.auth.getUser();
-      
-      if (!data.user) {
-        throw new Error('Failed to authenticate');
+        
+      const playerCount = lobby.players?.length || 0;
+      if (playerCount >= lobby.max_players) {
+        toast.error('Lobby is full');
+        setError('Lobby is full');
+        setIsJoining(false);
+        return;
       }
-      
+
       // Join the lobby
-      await joinLobby(lobbyId, data.user.id, name);
-      
+      const player = await joinLobby(
+        lobbyId,
+        currentUser.data.user.id,
+        name
+      );
+
+      // Save player info to local storage for quick access
+      localStorage.setItem('playerId', player.id);
+      localStorage.setItem('playerName', name);
+      localStorage.setItem('lobbyId', lobbyId);
+
       toast.success('Joined lobby successfully!');
       navigate(`/lobby/${lobbyId}`);
     } catch (error: any) {
-      console.error('Join lobby error:', error);
+      console.error('Error joining lobby:', error);
+      setError(error.message || 'Failed to join lobby');
       toast.error(error.message || 'Failed to join lobby');
     } finally {
       setIsJoining(false);
@@ -202,12 +178,6 @@ export default function JoinPage() {
           </button>
         </div>
       </div>
-      
-      {isUsingLocalLobby && (
-        <div className="mt-4 p-3 bg-yellow-50 text-yellow-800 rounded text-sm">
-          Playing in demo mode. Game data will be stored locally.
-        </div>
-      )}
     </div>
   );
 } 

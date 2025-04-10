@@ -39,6 +39,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             email: session.user.email
           });
           setUser(session.user);
+          
+          // Also set display name if available in user metadata
+          if (session.user.user_metadata?.display_name) {
+            setDisplayName(session.user.user_metadata.display_name);
+          }
+        } else {
+          // Check if we have stored email/password for anonymous user
+          const email = localStorage.getItem('anonymousUserEmail');
+          const password = localStorage.getItem('anonymousUserPassword');
+          
+          if (email && password) {
+            console.log('Found stored credentials, trying to sign in');
+            try {
+              const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password
+              });
+              
+              if (error) {
+                console.error('Error signing in with stored credentials:', error);
+              } else if (data.user) {
+                console.log('Signed in with stored credentials:', data.user);
+                setUser(data.user);
+                
+                if (data.user.user_metadata?.display_name) {
+                  setDisplayName(data.user.user_metadata.display_name);
+                }
+              }
+            } catch (e) {
+              console.error('Unexpected error during stored credential sign-in:', e);
+            }
+          }
         }
       } catch (err) {
         console.error('Error checking auth session:', err);
@@ -61,6 +93,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             email: session.user.email
           });
           setUser(session.user);
+          
+          // Also set display name if available in user metadata
+          if (session.user.user_metadata?.display_name) {
+            setDisplayName(session.user.user_metadata.display_name);
+          }
         } else {
           console.log('User signed out or session expired');
           setUser(null);
@@ -91,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       console.log('Calling signInAnonymously...');
       // Sign in anonymously
-      const { user } = await signInAnonymously();
+      const { user, session } = await signInAnonymously();
       
       console.log('Received user from signInAnonymously:', user);
       if (!user) {
@@ -100,13 +137,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw error;
       }
       
-      // Confirm the user ID exists and is valid
-      if (!user.id) {
-        console.error('User has no ID, creating fallback ID');
-        (user as any).id = `demo_${Math.random().toString(36).substring(2, 11)}`;
-      }
-      
       console.log('Authenticated user with ID:', user.id);
+      
+      // Update user metadata with display name
+      if (session) {
+        try {
+          const { error } = await supabase.auth.updateUser({
+            data: { display_name: name }
+          });
+          
+          if (error) {
+            console.error('Error updating user metadata:', error);
+          }
+        } catch (e) {
+          console.warn('Could not update user metadata:', e);
+        }
+      }
       
       // Set the user state with the newly authenticated user
       setUser(user);

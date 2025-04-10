@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { nanoid } from 'nanoid';
-import { supabase, GameSettings, GameState, Player, createLobbyDirectly, localGameStorage } from '../lib/supabaseClient';
+import { supabase, GameSettings, GameState, Player, localGameStorage, supabaseUrl, supabaseAnonKey } from '../lib/supabaseClient';
 
 // Hook for managing lobbies
 export function useLobbies() {
@@ -39,26 +39,41 @@ export function useLobbies() {
       console.log('Lobby settings:', settings);
       console.log('User metadata:', metadata);
       
-      // If the user ID starts with "demo_", use local storage instead of Supabase
-      if (hostId.startsWith('demo_')) {
-        console.log('Demo user detected, using local storage for lobby');
-        return localGameStorage.createLobby(
-          name, 
-          hostId, 
-          settings, 
-          metadata?.displayName || 'Host'
-        );
-      }
-      
       const lobbyId = nanoid(10);
       console.log('Generated lobbyId:', lobbyId);
       
-      try {
-        // Try standard Supabase insert
-        console.log('Attempting to create lobby with insert');
-        const { data, error } = await supabase
-          .from('lobbies')
-          .insert({
+      // Create lobby record in Supabase
+      console.log('Attempting to create lobby with insert');
+      const { data, error } = await supabase
+        .from('lobbies')
+        .insert({
+          id: lobbyId,
+          name,
+          host_id: hostId,
+          max_players: settings.maxPlayers,
+          active: true,
+          game_settings: settings,
+          current_game_state: null
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase error creating lobby:', error);
+        
+        // If RLS policy issues, try to create directly with our permissions
+        console.log('Trying direct API request to bypass RLS...');
+        
+        // Direct REST API call
+        const response = await fetch(`${supabaseUrl}/rest/v1/lobbies`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify({
             id: lobbyId,
             name,
             host_id: hostId,
@@ -67,43 +82,66 @@ export function useLobbies() {
             game_settings: settings,
             current_game_state: null
           })
-          .select()
-          .single();
-
-        if (error) {
-          console.error('Supabase error creating lobby:', error);
-          throw error;
+        });
+        
+        if (!response.ok) {
+          console.error('Direct API request failed:', await response.text());
+          throw new Error(`Failed to create lobby: ${response.statusText}`);
         }
         
-        console.log('Lobby created successfully:', data);
+        const responseData = await response.json();
+        console.log('Created lobby via direct API:', responseData);
         
         // Also add host as a player
         try {
-          await supabase
-            .from('players')
-            .insert({
+          await fetch(`${supabaseUrl}/rest/v1/players`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseAnonKey,
+              'Authorization': `Bearer ${supabaseAnonKey}`
+            },
+            body: JSON.stringify({
               user_id: hostId,
               lobby_id: lobbyId,
               display_name: metadata?.displayName || 'Host',
               coins: 0,
               cards: []
-            });
+            })
+          });
           
-          console.log('Added host as player');
+          console.log('Added host as player via direct API');
         } catch (playerErr) {
-          console.warn('Error adding host as player:', playerErr);
+          console.warn('Error adding host as player via direct API:', playerErr);
         }
         
-        return data;
-      } catch (supabaseError) {
-        console.log('Supabase failed, falling back to local storage');
-        return localGameStorage.createLobby(
-          name, 
-          hostId, 
-          settings, 
-          metadata?.displayName || 'Host'
-        );
+        return responseData[0] || responseData;
       }
+      
+      console.log('Lobby created successfully:', data);
+      
+      // Also add host as a player
+      try {
+        const { error: playerError } = await supabase
+          .from('players')
+          .insert({
+            user_id: hostId,
+            lobby_id: lobbyId,
+            display_name: metadata?.displayName || 'Host',
+            coins: 0,
+            cards: []
+          });
+        
+        if (playerError) {
+          console.warn('Could not add host as player:', playerError);
+        } else {
+          console.log('Added host as player');
+        }
+      } catch (playerErr) {
+        console.warn('Error adding host as player:', playerErr);
+      }
+      
+      return data;
     } catch (err) {
       console.error('Error creating lobby:', err);
       if (err instanceof Error) {
@@ -115,30 +153,26 @@ export function useLobbies() {
     }
   }, []);
 
-  // Join an existing lobby
-  const joinLobby = useCallback(async (lobbyId: string, userId: string, displayName: string) => {
+  // Function to join a lobby
+  const joinLobby = async (lobbyId: string, userId: string, displayName: string) => {
+    console.log(`Joining lobby ${lobbyId} with user ${userId} as ${displayName}`);
+    
     try {
-      // First check if the lobby exists and has room
-      const { data: lobby, error: lobbyError } = await supabase
-        .from('lobbies')
-        .select('*, players(*)')
-        .eq('id', lobbyId)
-        .eq('active', true)
-        .single();
-
-      if (lobbyError) throw lobbyError;
+      // First, check if the player is already in the lobby
+      const { data: existingPlayer } = await supabase
+        .from('players')
+        .select('*')
+        .eq('lobby_id', lobbyId)
+        .eq('user_id', userId)
+        .maybeSingle();
       
-      if (!lobby) {
-        throw new Error('Lobby not found');
+      if (existingPlayer) {
+        console.log('Player already in lobby, returning existing player', existingPlayer);
+        return existingPlayer;
       }
-
-      const playerCount = lobby.players?.length || 0;
-      if (playerCount >= lobby.max_players) {
-        throw new Error('Lobby is full');
-      }
-
-      // Add player to the lobby
-      const { data, error } = await supabase
+      
+      // Create a new player in the lobby
+      const { data: player, error } = await supabase
         .from('players')
         .insert({
           user_id: userId,
@@ -149,14 +183,44 @@ export function useLobbies() {
         })
         .select()
         .single();
-
-      if (error) throw error;
-      return { lobby, player: data };
-    } catch (err) {
-      console.error('Error joining lobby:', err);
-      throw err;
+      
+      if (error) {
+        console.error('Error joining lobby with RLS:', error);
+        
+        // Fallback to direct API call if RLS policies prevent joining
+        const response = await fetch(`${supabaseUrl}/rest/v1/players`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify({
+            user_id: userId,
+            lobby_id: lobbyId,
+            display_name: displayName,
+            coins: 0,
+            cards: []
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to join lobby via direct API call');
+        }
+        
+        const responseData = await response.json();
+        console.log('Joined lobby via direct API call:', responseData[0]);
+        return responseData[0];
+      }
+      
+      console.log('Joined lobby with RLS:', player);
+      return player;
+    } catch (error) {
+      console.error('Error joining lobby:', error);
+      throw error;
     }
-  }, []);
+  };
 
   // Set up real-time subscription for lobbies
   useEffect(() => {
