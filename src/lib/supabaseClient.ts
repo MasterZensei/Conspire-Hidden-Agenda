@@ -216,7 +216,7 @@ export const signInAnonymously = async () => {
     // Create a fake user for demo purposes
     const demoUser = {
       id: `demo_${Math.random().toString(36).substring(2, 11)}`,
-      email: null,
+      email: undefined,
       app_metadata: {},
       user_metadata: {},
       aud: 'authenticated',
