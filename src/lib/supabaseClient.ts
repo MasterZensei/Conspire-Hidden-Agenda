@@ -180,14 +180,19 @@ export type GameState = {
 // Initialize Supabase client
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
-// Helper function to anonymously sign in
-export const signInAnonymously = async () => {
+// Helper function to sign in with magic link
+export const signInWithEmail = async (email: string) => {
   try {
-    console.log('Attempting anonymous sign-in with Supabase...');
-    const { data, error } = await supabase.auth.signInAnonymously();
+    console.log('Attempting sign-in with email:', email);
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
+    });
     
     if (error) {
-      console.error('Error signing in anonymously:', error);
+      console.error('Error signing in with email:', error);
       console.error('Error details:', {
         message: error.message,
         status: error.status,
@@ -196,10 +201,32 @@ export const signInAnonymously = async () => {
       throw error;
     }
     
-    console.log('Sign-in successful:', data);
-    return { user: data.user, session: data.session };
+    console.log('Sign-in email sent successfully:', data);
+    return data;
   } catch (e) {
     console.error('Unexpected error during sign-in:', e);
+    throw e;
+  }
+};
+
+// Original anonymous sign-in (keep for backwards compatibility)
+export const signInAnonymously = async () => {
+  try {
+    console.log('Anonymous sign-in not supported, using Demo mode...');
+    // Create a fake user for demo purposes
+    const demoUser = {
+      id: `demo_${Math.random().toString(36).substring(2, 11)}`,
+      email: null,
+      app_metadata: {},
+      user_metadata: {},
+      aud: 'authenticated',
+      created_at: new Date().toISOString()
+    };
+    
+    console.log('Created demo user:', demoUser);
+    return { user: demoUser, session: null };
+  } catch (e) {
+    console.error('Unexpected error during demo sign-in:', e);
     throw e;
   }
 };

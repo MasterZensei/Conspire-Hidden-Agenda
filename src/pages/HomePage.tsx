@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
 import { useLobbies } from '../hooks/useSupabase';
+import { signInWithEmail } from '../lib/supabaseClient';
 import { GameSettings } from '../lib/supabaseClient';
 
 export default function HomePage() {
@@ -13,6 +14,9 @@ export default function HomePage() {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isCreatingLobby, setIsCreatingLobby] = useState(false);
   const [name, setName] = useState(displayName || '');
+  const [email, setEmail] = useState('');
+  const [useDemo, setUseDemo] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const [lobbyName, setLobbyName] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(6);
   const [joinLobbyId, setJoinLobbyId] = useState('');
@@ -28,11 +32,25 @@ export default function HomePage() {
       toast.error('Please enter a display name');
       return;
     }
+
+    if (!useDemo && !email.trim()) {
+      toast.error('Please enter an email or use demo mode');
+      return;
+    }
     
     try {
       setIsSigningIn(true);
-      await signIn(name);
-      toast.success('Signed in successfully!');
+      
+      if (useDemo) {
+        // Use the demo mode (anonymous sign-in)
+        await signIn(name);
+        toast.success('Signed in successfully with demo mode!');
+      } else {
+        // Use email sign-in
+        await signInWithEmail(email);
+        setEmailSent(true);
+        toast.success('Magic link sent to your email!');
+      }
     } catch (error) {
       console.error('Sign in error:', error);
       toast.error('Failed to sign in. Please try again.');
@@ -98,30 +116,79 @@ export default function HomePage() {
         // Sign In Form
         <div className="w-full max-w-md p-6 bg-card rounded-lg shadow-lg border border-border">
           <h2 className="text-2xl font-semibold mb-4 text-card-foreground">Sign In</h2>
-          <form onSubmit={handleSignIn} className="space-y-4">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-muted-foreground mb-1">
-                Display Name
-              </label>
-              <input
-                id="name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Enter your display name"
-                className="w-full p-2 rounded border border-input bg-background text-foreground"
-                disabled={isSigningIn}
-                required
-              />
+          
+          {emailSent ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-primary/10 rounded-md text-center">
+                <p className="text-primary font-medium">Magic link sent to your email!</p>
+                <p className="text-sm text-muted-foreground mt-2">Check your inbox and click the link to sign in.</p>
+              </div>
+              <button
+                onClick={() => setEmailSent(false)}
+                className="w-full bg-secondary text-secondary-foreground rounded p-2 hover:bg-secondary/90 transition"
+              >
+                Back to Sign In
+              </button>
             </div>
-            <button
-              type="submit"
-              className="w-full bg-primary text-primary-foreground rounded p-2 hover:bg-primary/90 transition"
-              disabled={isSigningIn}
-            >
-              {isSigningIn ? 'Signing In...' : 'Sign In'}
-            </button>
-          </form>
+          ) : (
+            <form onSubmit={handleSignIn} className="space-y-4">
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-muted-foreground mb-1">
+                  Display Name
+                </label>
+                <input
+                  id="name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Enter your display name"
+                  className="w-full p-2 rounded border border-input bg-background text-foreground"
+                  disabled={isSigningIn}
+                  required
+                />
+              </div>
+              
+              {!useDemo && (
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-muted-foreground mb-1">
+                    Email
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    className="w-full p-2 rounded border border-input bg-background text-foreground"
+                    disabled={isSigningIn}
+                    required={!useDemo}
+                  />
+                </div>
+              )}
+              
+              <div className="flex items-center">
+                <input
+                  id="useDemo"
+                  type="checkbox"
+                  checked={useDemo}
+                  onChange={(e) => setUseDemo(e.target.checked)}
+                  className="mr-2"
+                  disabled={isSigningIn}
+                />
+                <label htmlFor="useDemo" className="text-sm text-foreground">
+                  Use Demo Mode (No Email Required)
+                </label>
+              </div>
+              
+              <button
+                type="submit"
+                className="w-full bg-primary text-primary-foreground rounded p-2 hover:bg-primary/90 transition"
+                disabled={isSigningIn}
+              >
+                {isSigningIn ? 'Signing In...' : useDemo ? 'Sign In with Demo Mode' : 'Send Magic Link'}
+              </button>
+            </form>
+          )}
         </div>
       ) : (
         // Create Lobby Form
