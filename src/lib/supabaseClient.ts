@@ -306,4 +306,45 @@ export const signOut = async () => {
     console.error('Error signing out:', error);
     throw error;
   }
+};
+
+// Direct database functions with edge functions
+export const createLobbyDirectly = async (
+  lobbyName: string,
+  hostId: string,
+  settings: GameSettings,
+  displayName: string
+) => {
+  try {
+    console.log('Using direct lobby creation function');
+    
+    // This will call a Supabase Edge Function that bypasses RLS
+    const response = await fetch(`${supabaseUrl}/functions/v1/create-lobby`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`
+      },
+      body: JSON.stringify({
+        name: lobbyName,
+        host_id: hostId,
+        max_players: settings.maxPlayers,
+        game_settings: settings,
+        display_name: displayName
+      })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Error from edge function:', errorData);
+      throw new Error(`Failed to create lobby: ${errorData.error || response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log('Edge function response:', data);
+    return data.lobby;
+  } catch (e) {
+    console.error('Error calling edge function:', e);
+    throw e;
+  }
 }; 

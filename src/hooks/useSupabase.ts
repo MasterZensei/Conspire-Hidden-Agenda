@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { nanoid } from 'nanoid';
-import { supabase, GameSettings, GameState, Player } from '../lib/supabaseClient';
+import { supabase, GameSettings, GameState, Player, createLobbyDirectly } from '../lib/supabaseClient';
 
 // Hook for managing lobbies
 export function useLobbies() {
@@ -28,17 +28,25 @@ export function useLobbies() {
   }, []);
 
   // Create a new lobby
-  const createLobby = useCallback(async (name: string, hostId: string, settings: GameSettings) => {
+  const createLobby = useCallback(async (
+    name: string, 
+    hostId: string, 
+    settings: GameSettings,
+    metadata?: { displayName?: string; userId?: string }
+  ) => {
     try {
       console.log('Creating lobby with host ID:', hostId);
       console.log('Lobby settings:', settings);
+      console.log('User metadata:', metadata);
       
       const lobbyId = nanoid(10);
       console.log('Generated lobbyId:', lobbyId);
       
+      // Try creating the lobby using upsert instead of insert
+      console.log('Attempting to create lobby with upsert');
       const { data, error } = await supabase
         .from('lobbies')
-        .insert({
+        .upsert({
           id: lobbyId,
           name,
           host_id: hostId,
@@ -46,7 +54,7 @@ export function useLobbies() {
           active: true,
           game_settings: settings,
           current_game_state: null
-        })
+        }, { onConflict: 'id' })
         .select()
         .single();
 
@@ -58,10 +66,71 @@ export function useLobbies() {
           details: error.details,
           hint: error.hint
         });
-        throw error;
+        
+        // Try a fallback approach with a direct RPC call if available
+        console.log('Trying fallback approach with createLobbyFunction...');
+        try {
+          const { data: funcData, error: funcError } = await supabase.rpc('create_lobby', {
+            lobby_id: lobbyId,
+            lobby_name: name,
+            host_user_id: hostId,
+            players_max: settings.maxPlayers,
+            settings_json: settings
+          });
+          
+          if (funcError) {
+            console.error('Fallback RPC failed:', funcError);
+            throw funcError;
+          }
+          
+          console.log('Created lobby using fallback RPC:', funcData);
+          return funcData;
+        } catch (rpcError) {
+          console.error('RPC approach failed, trying direct function...');
+          
+          // Try the direct function approach as a last resort
+          try {
+            const directData = await createLobbyDirectly(
+              name, 
+              hostId, 
+              settings, 
+              metadata?.displayName || 'Host'
+            );
+            
+            console.log('Created lobby using direct function:', directData);
+            return directData;
+          } catch (directError) {
+            console.error('All approaches failed, throwing original error');
+            throw error; // Throw the original error
+          }
+        }
       }
       
       console.log('Lobby created successfully:', data);
+      
+      // Also add host as a player to avoid RLS issues
+      try {
+        const { data: playerData, error: playerError } = await supabase
+          .from('players')
+          .insert({
+            user_id: hostId,
+            lobby_id: lobbyId,
+            display_name: metadata?.displayName || 'Host',
+            coins: 0,
+            cards: []
+          })
+          .select()
+          .single();
+          
+        if (playerError) {
+          console.warn('Could not add host as player:', playerError);
+        } else {
+          console.log('Added host as player:', playerData);
+        }
+      } catch (playerErr) {
+        console.warn('Error adding host as player:', playerErr);
+      }
+      
       return data;
     } catch (err) {
       console.error('Error creating lobby:', err);

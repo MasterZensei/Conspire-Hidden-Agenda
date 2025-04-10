@@ -75,12 +75,18 @@ export default function HomePage() {
       setIsCreatingLobby(true);
       
       console.log('Creating lobby with user:', user);
+      console.log('Display name is:', displayName);
       
       // Ensure we have a valid user ID
       if (!user.id) {
         console.error('User has no ID');
         toast.error('Authentication issue. Please try signing in again.');
         return;
+      }
+      
+      // Check if we have a displayName
+      if (!displayName) {
+        console.warn('No display name found, using default');
       }
       
       // Define game settings
@@ -94,8 +100,22 @@ export default function HomePage() {
         maxPlayers
       };
       
-      const lobby = await createLobby(lobbyName, user.id, gameSettings);
+      // Add user metadata
+      const metadata = {
+        displayName: displayName || 'Player',
+        userId: user.id
+      };
+      
+      const lobby = await createLobby(lobbyName, user.id, gameSettings, metadata);
       toast.success('Lobby created successfully!');
+      
+      // Store lobby ID in session storage as fallback
+      try {
+        sessionStorage.setItem('lastCreatedLobbyId', lobby.id);
+        sessionStorage.setItem('lastCreatedLobbyName', lobby.name);
+      } catch (err) {
+        console.warn('Could not store lobby info in session storage:', err);
+      }
       
       // Navigate to the lobby
       navigate(`/lobby/${lobby.id}`);
