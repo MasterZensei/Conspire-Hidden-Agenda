@@ -212,21 +212,27 @@ export const signInWithEmail = async (email: string) => {
 // Original anonymous sign-in (keep for backwards compatibility)
 export const signInAnonymously = async () => {
   try {
-    console.log('Anonymous sign-in not supported, using Demo mode...');
-    // Create a fake user for demo purposes
-    const demoUser = {
-      id: `demo_${Math.random().toString(36).substring(2, 11)}`,
-      email: undefined,
-      app_metadata: {},
-      user_metadata: {},
-      aud: 'authenticated',
-      created_at: new Date().toISOString()
-    };
+    console.log('Setting up anonymous authentication...');
+    // Use Supabase's anonymous sign-in method
+    const { data, error } = await supabase.auth.signUp({
+      email: `anonymous_${Math.random().toString(36).substring(2, 11)}@example.com`,
+      password: Math.random().toString(36).substring(2, 15),
+    });
     
-    console.log('Created demo user:', demoUser);
-    return { user: demoUser, session: null };
+    if (error) {
+      console.error('Error with anonymous sign-in:', error);
+      throw error;
+    }
+    
+    if (!data.user) {
+      console.error('No user returned from anonymous sign-in');
+      throw new Error('Failed to sign in anonymously');
+    }
+    
+    console.log('Created anonymous user:', data.user);
+    return { user: data.user, session: data.session };
   } catch (e) {
-    console.error('Unexpected error during demo sign-in:', e);
+    console.error('Unexpected error during anonymous sign-in:', e);
     throw e;
   }
 };

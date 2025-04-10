@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       console.log('Calling signInAnonymously...');
       // Sign in anonymously
-      const { user } = await signInAnonymously();
+      const { user, session } = await signInAnonymously();
       
       console.log('Received user from signInAnonymously:', user);
       if (!user) {
@@ -86,6 +86,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error(error);
         throw error;
       }
+      
+      // Set the user state with the newly authenticated user
+      setUser(user);
       
       return user;
     } catch (err) {
