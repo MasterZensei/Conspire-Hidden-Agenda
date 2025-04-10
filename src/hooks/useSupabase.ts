@@ -38,7 +38,14 @@ export function useLobbies() {
       console.log('Lobby settings:', settings);
       console.log('User metadata:', metadata);
       
-      // Use crypto.randomUUID() instead of nanoid() to generate a proper UUID
+      // Ensure we have a valid session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!session) {
+        throw new Error('No active session. Please sign in again.');
+      }
+      
+      // Generate a proper UUID using crypto.randomUUID()
       const lobbyId = crypto.randomUUID();
       console.log('Generated lobbyId:', lobbyId);
       
@@ -64,13 +71,13 @@ export function useLobbies() {
         // If RLS policy issues, try to create directly with our permissions
         console.log('Trying direct API request to bypass RLS...');
         
-        // Direct REST API call
+        // Direct REST API call with session token
         const response = await fetch(`${supabaseUrl}/rest/v1/lobbies`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'apikey': supabaseAnonKey,
-            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'Authorization': `Bearer ${session.access_token}`,
             'Prefer': 'return=representation'
           },
           body: JSON.stringify({
@@ -85,21 +92,22 @@ export function useLobbies() {
         });
         
         if (!response.ok) {
-          console.error('Direct API request failed:', await response.text());
+          const errorText = await response.text();
+          console.error('Direct API request failed:', errorText);
           throw new Error(`Failed to create lobby: ${response.statusText}`);
         }
         
         const responseData = await response.json();
         console.log('Created lobby via direct API:', responseData);
         
-        // Also add host as a player
+        // Also add host as a player with session token
         try {
           await fetch(`${supabaseUrl}/rest/v1/players`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'apikey': supabaseAnonKey,
-              'Authorization': `Bearer ${supabaseAnonKey}`
+              'Authorization': `Bearer ${session.access_token}`
             },
             body: JSON.stringify({
               user_id: hostId,

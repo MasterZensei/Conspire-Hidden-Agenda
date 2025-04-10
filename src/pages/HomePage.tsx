@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLobbies } from '../hooks/useSupabase';
 import { signInWithEmail } from '../lib/supabaseClient';
 import { GameSettings } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 
 export default function HomePage() {
   const { user, signIn, displayName } = useAuth();
@@ -77,10 +78,23 @@ export default function HomePage() {
       console.log('Creating lobby with user:', user);
       console.log('Display name is:', displayName);
       
-      // Ensure we have a valid user ID
+      // Ensure we have a valid user ID and session
       if (!user.id) {
         console.error('User has no ID');
         toast.error('Authentication issue. Please try signing in again.');
+        return;
+      }
+      
+      // Check if we have a valid session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        toast.error('Authentication error. Please try signing in again.');
+        return;
+      }
+      if (!session) {
+        console.error('No active session');
+        toast.error('Please sign in again to create a lobby');
         return;
       }
       
@@ -124,9 +138,11 @@ export default function HomePage() {
       
       // Check for specific permission errors
       if (error?.message?.includes('permission denied') || error?.code === '42501') {
-        toast.error('Permission denied. This could be due to authentication issues.');
+        toast.error('Permission denied. Please try signing in again.');
       } else if (error?.code === '23505') {
         toast.error('A lobby with this name already exists.');
+      } else if (error?.message?.includes('No active session')) {
+        toast.error('Please sign in again to create a lobby');
       } else {
         toast.error('Failed to create lobby. Please try again.');
       }
