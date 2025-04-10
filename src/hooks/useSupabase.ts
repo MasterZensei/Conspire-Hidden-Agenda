@@ -39,7 +39,8 @@ export function useLobbies() {
       console.log('Lobby settings:', settings);
       console.log('User metadata:', metadata);
       
-      const lobbyId = nanoid(10);
+      // Use crypto.randomUUID() instead of nanoid() to generate a proper UUID
+      const lobbyId = crypto.randomUUID();
       console.log('Generated lobbyId:', lobbyId);
       
       // Create lobby record in Supabase
