@@ -1,4 +1,4 @@
-import { createClient, User } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 // Supabase environment variables
 export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -280,64 +280,5 @@ export const signOut = async () => {
   if (error) {
     console.error('Error signing out:', error);
     throw error;
-  }
-};
-
-// Storage for local game data when Supabase isn't available
-export const localGameStorage = {
-  lobbies: [] as any[],
-  
-  // Create a lobby locally
-  createLobby: (name: string, hostId: string, settings: GameSettings, displayName: string) => {
-    try {
-      const lobbyId = Math.random().toString(36).substring(2, 12);
-      
-      const newLobby = {
-        id: lobbyId,
-        name,
-        host_id: hostId,
-        max_players: settings.maxPlayers,
-        active: true,
-        game_settings: settings,
-        current_game_state: null,
-        created_at: new Date().toISOString(),
-        players: [{
-          id: Math.random().toString(36).substring(2, 12),
-          user_id: hostId,
-          lobby_id: lobbyId,
-          display_name: displayName,
-          created_at: new Date().toISOString(),
-          coins: 0,
-          cards: []
-        }]
-      };
-      
-      // Add to local storage
-      const lobbies = JSON.parse(localStorage.getItem('lobbies') || '[]');
-      lobbies.push(newLobby);
-      localStorage.setItem('lobbies', JSON.stringify(lobbies));
-      
-      console.log('Created local lobby:', newLobby);
-      return newLobby;
-    } catch (e) {
-      console.error('Error creating local lobby:', e);
-      throw e;
-    }
-  }
-};
-
-// Direct database functions with edge functions
-export const createLobbyDirectly = async (
-  lobbyName: string,
-  hostId: string,
-  settings: GameSettings,
-  displayName: string
-) => {
-  try {
-    // Just use the local storage version since the edge function doesn't exist
-    return localGameStorage.createLobby(lobbyName, hostId, settings, displayName);
-  } catch (e) {
-    console.error('Error creating lobby:', e);
-    throw e;
   }
 }; 
