@@ -222,8 +222,8 @@ export function getAvailableActions(player: Player, gameState: GameState): Actio
     availableActions.push(ActionType.Interrogate);
   }
   
-  // Add reformation-specific actions
-  if (gameState.players.some(p => p.allegiance !== player.allegiance)) {
+  // Add reformation-specific actions only if the expansion is active
+  if (gameState.players.some(p => p.allegiance) && player.coins >= actionCosts[ActionType.Convert]) {
     availableActions.push(ActionType.Convert);
   }
   
@@ -250,14 +250,29 @@ export function applyAction(
   switch (action) {
     case ActionType.Income:
       newState.players[playerIndex].coins += 1;
+      newState.lastAction = {
+        type: action,
+        player: playerId,
+        result: 'success'
+      };
       break;
       
     case ActionType.ForeignAid:
       newState.players[playerIndex].coins += 2;
+      newState.lastAction = {
+        type: action,
+        player: playerId,
+        result: 'success'
+      };
       break;
       
     case ActionType.Tax:
       newState.players[playerIndex].coins += 3;
+      newState.lastAction = {
+        type: action,
+        player: playerId,
+        result: 'success'
+      };
       break;
       
     case ActionType.Steal:
@@ -265,6 +280,12 @@ export function applyAction(
         const stealAmount = Math.min(2, target.coins);
         newState.players[targetIndex].coins -= stealAmount;
         newState.players[playerIndex].coins += stealAmount;
+        newState.lastAction = {
+          type: action,
+          player: playerId,
+          target: targetId,
+          result: 'success'
+        };
       }
       break;
       
@@ -281,6 +302,12 @@ export function applyAction(
             newState.players[targetIndex].eliminated = true;
           }
         }
+        newState.lastAction = {
+          type: action,
+          player: playerId,
+          target: targetId,
+          result: 'success'
+        };
       }
       break;
       
@@ -297,26 +324,31 @@ export function applyAction(
             newState.players[targetIndex].eliminated = true;
           }
         }
+        newState.lastAction = {
+          type: action,
+          player: playerId,
+          target: targetId,
+          result: 'success'
+        };
       }
       break;
       
-    case ActionType.Exchange:
-      // Exchange is handled in a separate function as it requires user input
+    case ActionType.Convert:
+      if (target && newState.players[playerIndex].allegiance) {
+        newState.players[playerIndex].coins -= actionCosts[ActionType.Convert];
+        newState.players[targetIndex].allegiance = newState.players[playerIndex].allegiance;
+        newState.lastAction = {
+          type: action,
+          player: playerId,
+          target: targetId,
+          result: 'success'
+        };
+      }
       break;
-      
-    // Add more actions for expansions here
   }
   
-  // Update last action
-  newState.lastAction = {
-    type: action,
-    player: playerId,
-    target: targetId,
-    result: 'success'
-  };
-  
   // Move to next player
-  let nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+  let nextPlayerIndex = (playerIndex + 1) % newState.players.length;
   
   // Skip eliminated players
   while (newState.players[nextPlayerIndex].eliminated) {

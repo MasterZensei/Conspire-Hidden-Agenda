@@ -1,0 +1,116 @@
+[1mdiff --git a/src/lib/game/gameRules.ts b/src/lib/game/gameRules.ts[m
+[1mindex 69ec674..f74dcca 100644[m
+[1m--- a/src/lib/game/gameRules.ts[m
+[1m+++ b/src/lib/game/gameRules.ts[m
+[36m@@ -222,8 +222,8 @@[m [mexport function getAvailableActions(player: Player, gameState: GameState): Actio[m
+     availableActions.push(ActionType.Interrogate);[m
+   }[m
+   [m
+[31m-  // Add reformation-specific actions[m
+[31m-  if (gameState.players.some(p => p.allegiance !== player.allegiance)) {[m
+[32m+[m[32m  // Add reformation-specific actions only if the expansion is active[m
+[32m+[m[32m  if (gameState.players.some(p => p.allegiance) && player.coins >= actionCosts[ActionType.Convert]) {[m
+     availableActions.push(ActionType.Convert);[m
+   }[m
+   [m
+[36m@@ -250,14 +250,29 @@[m [mexport function applyAction([m
+   switch (action) {[m
+     case ActionType.Income:[m
+       newState.players[playerIndex].coins += 1;[m
+[32m+[m[32m      newState.lastAction = {[m
+[32m+[m[32m        type: action,[m
+[32m+[m[32m        player: playerId,[m
+[32m+[m[32m        result: 'success'[m
+[32m+[m[32m      };[m
+       break;[m
+       [m
+     case ActionType.ForeignAid:[m
+       newState.players[playerIndex].coins += 2;[m
+[32m+[m[32m      newState.lastAction = {[m
+[32m+[m[32m        type: action,[m
+[32m+[m[32m        player: playerId,[m
+[32m+[m[32m        result: 'success'[m
+[32m+[m[32m      };[m
+       break;[m
+       [m
+     case ActionType.Tax:[m
+       newState.players[playerIndex].coins += 3;[m
+[32m+[m[32m      newState.lastAction = {[m
+[32m+[m[32m        type: action,[m
+[32m+[m[32m        player: playerId,[m
+[32m+[m[32m        result: 'success'[m
+[32m+[m[32m      };[m
+       break;[m
+       [m
+     case ActionType.Steal:[m
+[36m@@ -265,6 +280,12 @@[m [mexport function applyAction([m
+         const stealAmount = Math.min(2, target.coins);[m
+         newState.players[targetIndex].coins -= stealAmount;[m
+         newState.players[playerIndex].coins += stealAmount;[m
+[32m+[m[32m        newState.lastAction = {[m
+[32m+[m[32m          type: action,[m
+[32m+[m[32m          player: playerId,[m
+[32m+[m[32m          target: targetId,[m
+[32m+[m[32m          result: 'success'[m
+[32m+[m[32m        };[m
+       }[m
+       break;[m
+       [m
+[36m@@ -281,6 +302,12 @@[m [mexport function applyAction([m
+             newState.players[targetIndex].eliminated = true;[m
+           }[m
+         }[m
+[32m+[m[32m        newState.lastAction = {[m
+[32m+[m[32m          type: action,[m
+[32m+[m[32m          player: playerId,[m
+[32m+[m[32m          target: targetId,[m
+[32m+[m[32m          result: 'success'[m
+[32m+[m[32m        };[m
+       }[m
+       break;[m
+       [m
+[36m@@ -297,26 +324,31 @@[m [mexport function applyAction([m
+             newState.players[targetIndex].eliminated = true;[m
+           }[m
+         }[m
+[32m+[m[32m        newState.lastAction = {[m
+[32m+[m[32m          type: action,[m
+[32m+[m[32m          player: playerId,[m
+[32m+[m[32m          target: targetId,[m
+[32m+[m[32m          result: 'success'[m
+[32m+[m[32m        };[m
+       }[m
+       break;[m
+       [m
+[31m-    case ActionType.Exchange:[m
+[31m-      // Exchange is handled in a separate function as it requires user input[m
+[32m+[m[32m    case ActionType.Convert:[m
+[32m+[m[32m      if (target && newState.players[playerIndex].allegiance) {[m
+[32m+[m[32m        newState.players[playerIndex].coins -= actionCosts[ActionType.Convert];[m
+[32m+[m[32m        newState.players[targetIndex].allegiance = newState.players[playerIndex].allegiance;[m
+[32m+[m[32m        newState.lastAction = {[m
+[32m+[m[32m          type: action,[m
+[32m+[m[32m          player: playerId,[m
+[32m+[m[32m          target: targetId,[m
+[32m+[m[32m          result: 'success'[m
+[32m+[m[32m        };[m
+[32m+[m[32m      }[m
+       break;[m
+[31m-      [m
+[31m-    // Add more actions for expansions here[m
+   }[m
+   [m
+[31m-  // Update last action[m
+[31m-  newState.lastAction = {[m
+[31m-    type: action,[m
+[31m-    player: playerId,[m
+[31m-    target: targetId,[m
+[31m-    result: 'success'[m
+[31m-  };[m
+[31m-  [m
+   // Move to next player[m
+[31m-  let nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;[m
+[32m+[m[32m  let nextPlayerIndex = (playerIndex + 1) % newState.players.length;[m
+   [m
+   // Skip eliminated players[m
+   while (newState.players[nextPlayerIndex].eliminated) {[m
