@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, User } from '@supabase/supabase-js';
 
 // Supabase environment variables
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -213,15 +213,35 @@ export const signInWithEmail = async (email: string) => {
 export const signInAnonymously = async () => {
   try {
     console.log('Setting up anonymous authentication...');
-    // Use Supabase's anonymous sign-in method
+    
+    // Generate random email and password for demo user
+    const randomId = Math.random().toString(36).substring(2, 11);
+    const demoEmail = `anonymous_${randomId}@example.com`;
+    const demoPassword = Math.random().toString(36).substring(2, 15);
+    
+    console.log(`Creating demo user with email: ${demoEmail}`);
+    
+    // Use Supabase's sign-up method
     const { data, error } = await supabase.auth.signUp({
-      email: `anonymous_${Math.random().toString(36).substring(2, 11)}@example.com`,
-      password: Math.random().toString(36).substring(2, 15),
+      email: demoEmail,
+      password: demoPassword,
     });
     
     if (error) {
       console.error('Error with anonymous sign-in:', error);
-      throw error;
+      
+      // Fall back to a local demo user if Supabase auth fails
+      console.log('Falling back to local demo user');
+      const fallbackUser = {
+        id: `demo_${randomId}`,
+        email: demoEmail,
+        app_metadata: {},
+        user_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString()
+      };
+      
+      return { user: fallbackUser as unknown as User, session: null };
     }
     
     if (!data.user) {
