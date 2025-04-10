@@ -156,7 +156,7 @@ export function initializeGameState(
     return {
       ...player,
       cards,
-      coins: settings.startingCoins || 2,
+      coins: 2, // Always start with 2 coins
       eliminated: false,
       allegiance
     };
@@ -169,7 +169,8 @@ export function initializeGameState(
     players: playersWithCards,
     currentAction: null,
     lastAction: null,
-    winner: null
+    winner: null,
+    treasury: 50 // Add a treasury for tracking bank coins
   };
 }
 
@@ -250,6 +251,7 @@ export function applyAction(
   switch (action) {
     case ActionType.Income:
       newState.players[playerIndex].coins += 1;
+      newState.treasury = Math.max(0, (newState.treasury || 50) - 1);
       newState.lastAction = {
         type: action,
         player: playerId,
@@ -259,6 +261,7 @@ export function applyAction(
       
     case ActionType.ForeignAid:
       newState.players[playerIndex].coins += 2;
+      newState.treasury = Math.max(0, (newState.treasury || 50) - 2);
       newState.lastAction = {
         type: action,
         player: playerId,
@@ -268,6 +271,7 @@ export function applyAction(
       
     case ActionType.Tax:
       newState.players[playerIndex].coins += 3;
+      newState.treasury = Math.max(0, (newState.treasury || 50) - 3);
       newState.lastAction = {
         type: action,
         player: playerId,

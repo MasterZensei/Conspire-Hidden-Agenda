@@ -174,6 +174,7 @@ export type GameState = {
     result: 'success' | 'failed' | 'challenged' | 'blocked';
   } | null;
   winner: string | null;
+  treasury: number;
 };
 
 // Initialize Supabase client

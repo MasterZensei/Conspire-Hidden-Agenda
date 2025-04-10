@@ -26,20 +26,20 @@ function PlayerCard({ card, flipped, onClick }: { card: Card; flipped: boolean; 
     >
       <div 
         className={`absolute w-full h-full backface-hidden rounded-md ${
-          flipped ? 'hidden' : 'bg-primary text-primary-foreground'
+          !flipped ? 'bg-primary text-primary-foreground' : 'hidden'
         } flex items-center justify-center font-bold`}
       >
         COUP
       </div>
       <div 
         className={`absolute w-full h-full backface-hidden rounded-md ${
-          !flipped ? 'hidden' : ''
-        } bg-card text-card-foreground transform rotate-y-180 flex flex-col items-center justify-center p-2`}
+          flipped ? 'bg-card text-card-foreground' : 'hidden'
+        } flex flex-col items-center justify-center p-2`}
       >
         <h3 className="font-bold text-sm capitalize">{card.type}</h3>
         {card.revealed && (
           <div className="absolute inset-0 bg-destructive/20 rounded-md flex items-center justify-center">
-            <span className="text-destructive font-bold transform rotate-[30deg]">REVEALED</span>
+            <span className="text-destructive font-bold">REVEALED</span>
           </div>
         )}
       </div>
@@ -228,6 +228,42 @@ export default function GamePage() {
     setSelectedAction(action);
   };
   
+  // Handle action that doesn't require a target
+  const handlePerformAction = async (action: ActionType) => {
+    if (!currentUserPlayer || !gameState) return;
+    
+    try {
+      setIsPerformingAction(true);
+      
+      // Create action record in database
+      await createAction(
+        currentUserPlayer.id,
+        action
+      );
+      
+      // Apply the action to the game state
+      const updatedGameState = applyAction(
+        gameState,
+        currentUserPlayer.id,
+        action
+      );
+      
+      // Update game state in database
+      await updateGameState(updatedGameState);
+      
+      // Update local state
+      setGameState(updatedGameState);
+      
+      // Reset action selection
+      setSelectedAction(undefined);
+    } catch (err) {
+      console.error('Error performing action:', err);
+      toast.error('Failed to perform action: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setIsPerformingAction(false);
+    }
+  };
+  
   // Handle target selection
   const handleSelectTarget = async (targetId: string) => {
     if (!selectedAction || !currentUserPlayer || !gameState) return;
@@ -253,41 +289,14 @@ export default function GamePage() {
       // Update game state in database
       await updateGameState(updatedGameState);
       
-      // Reset selection
+      // Update local state
+      setGameState(updatedGameState);
+      
+      // Reset action selection
       setSelectedAction(undefined);
     } catch (err) {
       console.error('Error performing action:', err);
-      toast.error('Failed to perform action');
-    } finally {
-      setIsPerformingAction(false);
-    }
-  };
-  
-  // Handle action that doesn't require a target
-  const handlePerformAction = async (action: ActionType) => {
-    if (!currentUserPlayer || !gameState) return;
-    
-    try {
-      setIsPerformingAction(true);
-      
-      // Create action record in database
-      await createAction(
-        currentUserPlayer.id,
-        action
-      );
-      
-      // Apply the action to the game state
-      const updatedGameState = applyAction(
-        gameState,
-        currentUserPlayer.id,
-        action
-      );
-      
-      // Update game state in database
-      await updateGameState(updatedGameState);
-    } catch (err) {
-      console.error('Error performing action:', err);
-      toast.error('Failed to perform action');
+      toast.error('Failed to perform action: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setIsPerformingAction(false);
     }
