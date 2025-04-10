@@ -37,13 +37,27 @@ export const characterActions = {
 };
 
 // Define action costs
-export const actionCosts = {
+export const actionCosts: Record<ActionType, number> = {
+  [ActionType.Income]: 0,
+  [ActionType.ForeignAid]: 0,
+  [ActionType.Tax]: 0,
+  [ActionType.Steal]: 0,
+  [ActionType.Exchange]: 0,
+  [ActionType.Question]: 0,
+  [ActionType.Convert]: 1,
+  [ActionType.Embezzle]: 0,
+  [ActionType.Interrogate]: 0,
   [ActionType.Assassinate]: 3,
   [ActionType.Coup]: 7,
 };
 
 // Define if actions require targets
-export const actionRequiresTarget = {
+export const actionRequiresTarget: Record<ActionType, boolean> = {
+  [ActionType.Income]: false,
+  [ActionType.ForeignAid]: false,
+  [ActionType.Tax]: false,
+  [ActionType.Exchange]: false,
+  [ActionType.Embezzle]: false,
   [ActionType.Coup]: true,
   [ActionType.Assassinate]: true,
   [ActionType.Steal]: true,
@@ -132,15 +146,19 @@ export function initializeGameState(
       { type: deck.pop() as CardType, revealed: false },
       { type: deck.pop() as CardType, revealed: false }
     ];
+    
+    // Determine allegiance - only "loyalist", "reformist" or undefined
+    let allegiance: "loyalist" | "reformist" | undefined = undefined;
+    if (settings.expansions.reformation) {
+      allegiance = Math.random() > 0.5 ? "loyalist" : "reformist";
+    }
+    
     return {
       ...player,
       cards,
       coins: settings.startingCoins || 2,
       eliminated: false,
-      // If reformation expansion is active, randomly assign allegiance
-      allegiance: settings.expansions.reformation 
-        ? (Math.random() > 0.5 ? 'loyalist' : 'reformist') 
-        : undefined
+      allegiance
     };
   });
 
@@ -222,7 +240,6 @@ export function applyAction(
   const playerIndex = gameState.players.findIndex(p => p.id === playerId);
   if (playerIndex === -1) return gameState;
   
-  const player = gameState.players[playerIndex];
   const targetIndex = targetId ? gameState.players.findIndex(p => p.id === targetId) : -1;
   const target = targetIndex !== -1 ? gameState.players[targetIndex] : undefined;
   

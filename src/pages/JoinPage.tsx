@@ -68,14 +68,14 @@ export default function JoinPage() {
         await signIn(name);
       }
       
-      const { user: currentUser } = await supabase.auth.getUser();
+      const { data } = await supabase.auth.getUser();
       
-      if (!currentUser) {
+      if (!data.user) {
         throw new Error('Failed to authenticate');
       }
       
       // Join the lobby
-      await joinLobby(lobbyId, currentUser.id, name);
+      await joinLobby(lobbyId, data.user.id, name);
       
       toast.success('Joined lobby successfully!');
       navigate(`/lobby/${lobbyId}`);

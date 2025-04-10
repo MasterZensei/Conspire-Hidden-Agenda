@@ -6,7 +6,7 @@ import { useLobbies } from '../hooks/useSupabase';
 import { GameSettings } from '../lib/supabaseClient';
 
 export default function HomePage() {
-  const { user, signIn, displayName, setDisplayName } = useAuth();
+  const { user, signIn, displayName } = useAuth();
   const { createLobby } = useLobbies();
   const navigate = useNavigate();
   

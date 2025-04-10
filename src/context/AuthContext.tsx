@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
         if (session?.user) {
           setUser(session.user);
         } else {
@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setDisplayName(name);
       
       // Sign in anonymously
-      const { data: { user } } = await signInAnonymously();
+      const { user } = await signInAnonymously();
       
       if (!user) {
         throw new Error('Failed to sign in anonymously');

@@ -9,7 +9,7 @@ import { Player } from '../lib/supabaseClient';
 export default function LobbyPage() {
   const { lobbyId } = useParams<{ lobbyId: string }>();
   const navigate = useNavigate();
-  const { user, displayName } = useAuth();
+  const { user } = useAuth();
   const { lobby, players, loading, error, startGame } = useLobby(lobbyId || '');
   
   const [isStarting, setIsStarting] = useState(false);

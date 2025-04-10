@@ -7,7 +7,6 @@ import { useLobby, useGameActions } from '../hooks/useSupabase';
 import { 
   ActionType, 
   applyAction, 
-  canPerformAction, 
   getAvailableActions,
   blockableActions,
   characterActions
@@ -191,7 +190,7 @@ export default function GamePage() {
   const { createAction } = useGameActions(lobbyId || '');
   
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [selectedAction, setSelectedAction] = useState<ActionType | null>(null);
+  const [selectedAction, setSelectedAction] = useState<ActionType | undefined>(undefined);
   const [isPerformingAction, setIsPerformingAction] = useState(false);
   const [availableActions, setAvailableActions] = useState<ActionType[]>([]);
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
@@ -255,7 +254,7 @@ export default function GamePage() {
       await updateGameState(updatedGameState);
       
       // Reset selection
-      setSelectedAction(null);
+      setSelectedAction(undefined);
     } catch (err) {
       console.error('Error performing action:', err);
       toast.error('Failed to perform action');
@@ -432,7 +431,7 @@ export default function GamePage() {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Select a Target for {selectedAction}</h2>
               <button
-                onClick={() => setSelectedAction(null)}
+                onClick={() => setSelectedAction(undefined)}
                 className="text-sm text-muted-foreground hover:text-foreground"
               >
                 Cancel
