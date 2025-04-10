@@ -1,54 +1,74 @@
-# React + TypeScript + Vite
+# Conspire: Hidden Agenda - Coup Online
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An online implementation of the popular card game "Coup" with optional expansions. Built with React, TypeScript, and Supabase for real-time multiplayer gameplay.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Anonymous Authentication**: Quick sign-in with just a username
+- **Lobby System**: Create and join game lobbies
+- **Game Expansions**: Optional Reformation, Inquisitor, and Anarchy expansions
+- **Real-time Gameplay**: Live updates using Supabase's real-time subscriptions
+- **Responsive Design**: Play on any device with a mobile-friendly UI
 
-## Expanding the ESLint configuration
+## Technologies Used
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- React 19 with TypeScript
+- Vite for fast development and building
+- Tailwind CSS for styling
+- Framer Motion for animations
+- Supabase for backend (authentication, database, and real-time functionality)
+- React Router for navigation
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
-```
+## Getting Started
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Prerequisites
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- Node.js (v18+)
+- npm or yarn
+- Supabase account and project
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/conspire-hidden-agenda.git
+   cd conspire-hidden-agenda
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   # or
+   yarn
+   ```
+
+3. Create a `.env` file in the root directory with your Supabase credentials:
+   ```
+   VITE_SUPABASE_URL=your_supabase_url
+   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+
+4. Start the development server:
+   ```bash
+   npm run dev
+   # or
+   yarn dev
+   ```
+
+## Deployment
+
+The application can be easily deployed to Vercel or any other platform that supports Vite applications.
+
+## Game Rules
+
+Coup is a game of deception and bluffing where players attempt to eliminate each other through clever use of character abilities and strategic actions. The last player standing wins.
+
+### Expansions
+
+- **Reformation**: Adds team play mechanics with Loyalists vs Reformists
+- **Inquisitor**: Replaces the Ambassador with the more powerful Inquisitor role
+- **Anarchy**: Adds special events and unpredictable game elements
+
+## License
+
+MIT License
