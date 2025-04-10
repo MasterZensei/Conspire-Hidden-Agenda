@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { nanoid } from 'nanoid';
-import { supabase, GameSettings, GameState, Player, localGameStorage, supabaseUrl, supabaseAnonKey } from '../lib/supabaseClient';
+import { supabase, GameSettings, GameState, Player, supabaseUrl, supabaseAnonKey } from '../lib/supabaseClient';
 
 // Hook for managing lobbies
 export function useLobbies() {
