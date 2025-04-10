@@ -175,7 +175,7 @@ export type GameState = {
   } | null;
   cardSelection?: {
     playerId: string;
-    reason: 'challenge' | 'block';
+    reason: 'challenge' | 'block' | 'exchange';
     validCards: CardType[];
     action: string;
   };

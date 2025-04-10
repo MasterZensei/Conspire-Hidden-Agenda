@@ -22,7 +22,7 @@ export enum ActionType {
 export const blockableActions = {
   [ActionType.ForeignAid]: ['duke'],
   [ActionType.Assassinate]: ['contessa'],
-  [ActionType.Steal]: ['ambassador', 'captain', 'inquisitor'],
+  [ActionType.Steal]: ['ambassador', 'captain'],
 };
 
 // Define which actions are character-specific and can be challenged
@@ -73,6 +73,7 @@ export function createDeck(settings: GameSettings): CardType[] {
     'duke', 'duke', 'duke',
     'assassin', 'assassin', 'assassin',
     'captain', 'captain', 'captain',
+    'ambassador', 'ambassador', 'ambassador',
     'contessa', 'contessa', 'contessa'
   ];
   
@@ -80,9 +81,6 @@ export function createDeck(settings: GameSettings): CardType[] {
   if (settings.expansions.inquisitor) {
     // Replace ambassador with inquisitor
     return deck.map(card => card === 'ambassador' ? 'inquisitor' : card);
-  } else {
-    // Add ambassador if not using inquisitor
-    deck.push('ambassador', 'ambassador', 'ambassador');
   }
   
   return shuffleDeck(deck);
@@ -279,6 +277,25 @@ export function applyAction(
       };
       break;
       
+    case ActionType.Exchange:
+      // Draw two cards from the deck
+      const drawnCards = newState.deck.splice(0, 2);
+      
+      // Create a card selection state to handle the exchange
+      newState.cardSelection = {
+        playerId: playerId,
+        reason: 'exchange',
+        validCards: [...drawnCards, ...newState.players[playerIndex].cards.filter(c => !c.revealed).map(c => c.type)],
+        action: action
+      };
+      
+      newState.lastAction = {
+        type: action,
+        player: playerId,
+        result: 'success'
+      };
+      break;
+      
     case ActionType.Steal:
       if (target) {
         const stealAmount = Math.min(2, target.coins);
@@ -372,6 +389,206 @@ export function applyAction(
     newState.status = 'completed';
     newState.winner = activePlayers[0].id;
   }
+  
+  return newState;
+}
+
+// Handle a challenge
+export function handleChallenge(
+  gameState: GameState,
+  challengerId: string,
+  actionPlayerId: string,
+  actionType: ActionType
+): GameState {
+  const newState: GameState = JSON.parse(JSON.stringify(gameState));
+  
+  const challengerIndex = newState.players.findIndex(p => p.id === challengerId);
+  const actionPlayerIndex = newState.players.findIndex(p => p.id === actionPlayerId);
+  
+  if (challengerIndex === -1 || actionPlayerIndex === -1) return newState;
+  
+  // Get the card that should be shown for this action
+  const requiredCards = actionType in characterActions ? characterActions[actionType as keyof typeof characterActions] : [];
+  
+  // Check if the player has the claimed card
+  const hasClaimedCard = newState.players[actionPlayerIndex].cards.some(
+    card => !card.revealed && requiredCards.includes(card.type)
+  );
+  
+  if (hasClaimedCard) {
+    // Challenge fails - challenger loses influence
+    const challengerCardIndex = newState.players[challengerIndex].cards.findIndex(
+      card => !card.revealed
+    );
+    
+    if (challengerCardIndex !== -1) {
+      newState.players[challengerIndex].cards[challengerCardIndex].revealed = true;
+      
+      // Check if player is eliminated
+      if (newState.players[challengerIndex].cards.every(card => card.revealed)) {
+        newState.players[challengerIndex].eliminated = true;
+      }
+    }
+    
+    // Player who was challenged gets a new card
+    const actionPlayerCardIndex = newState.players[actionPlayerIndex].cards.findIndex(
+      card => !card.revealed && requiredCards.includes(card.type)
+    );
+    
+    if (actionPlayerCardIndex !== -1) {
+      // Return the card to the deck
+      newState.deck.push(newState.players[actionPlayerIndex].cards[actionPlayerCardIndex].type);
+      
+      // Shuffle the deck
+      newState.deck = shuffleDeck(newState.deck);
+      
+      // Draw a new card
+      const newCard = newState.deck.pop() as CardType;
+      newState.players[actionPlayerIndex].cards[actionPlayerCardIndex].type = newCard;
+    }
+    
+    // Action proceeds
+    newState.lastAction = {
+      ...newState.lastAction as any,
+      result: 'challenged',
+      challengeResult: 'failed'
+    };
+  } else {
+    // Challenge succeeds - action player loses influence
+    const actionPlayerCardIndex = newState.players[actionPlayerIndex].cards.findIndex(
+      card => !card.revealed
+    );
+    
+    if (actionPlayerCardIndex !== -1) {
+      newState.players[actionPlayerIndex].cards[actionPlayerCardIndex].revealed = true;
+      
+      // Check if player is eliminated
+      if (newState.players[actionPlayerIndex].cards.every(card => card.revealed)) {
+        newState.players[actionPlayerIndex].eliminated = true;
+      }
+    }
+    
+    // Action is blocked
+    newState.lastAction = {
+      ...newState.lastAction as any,
+      result: 'challenged',
+      challengeResult: 'succeeded'
+    };
+    
+    // Refund any costs if the action was paid for
+    const actionCost = actionCosts[actionType] || 0;
+    if (actionCost > 0) {
+      newState.players[actionPlayerIndex].coins += actionCost;
+    }
+  }
+  
+  return newState;
+}
+
+// Handle a counteraction (block)
+export function handleCounterAction(
+  gameState: GameState,
+  blockerId: string, 
+  actionType: ActionType,
+  blockingCard: CardType
+): GameState {
+  const newState: GameState = JSON.parse(JSON.stringify(gameState));
+  
+  // Check if the action is blockable
+  const validBlockingCards = actionType in blockableActions ? blockableActions[actionType as keyof typeof blockableActions] : [];
+  if (!validBlockingCards.includes(blockingCard)) {
+    return newState;
+  }
+  
+  // Set up challenge state for the block claim
+  newState.currentAction = {
+    type: 'block',
+    player: blockerId,
+    blockingCard,
+    targetAction: actionType,
+    challengeable: true,
+    blockable: false
+  } as any;
+  
+  // Action is temporarily blocked pending challenge
+  newState.lastAction = {
+    ...newState.lastAction as any,
+    result: 'blocked',
+    blocker: blockerId,
+    blockingCard
+  };
+  
+  return newState;
+}
+
+// Resolve a block that was not challenged
+export function resolveBlock(
+  gameState: GameState,
+  blockerId: string,
+  actionType: ActionType
+): GameState {
+  const newState: GameState = JSON.parse(JSON.stringify(gameState));
+  
+  // Action is blocked - set appropriate state
+  newState.lastAction = {
+    ...newState.lastAction as any,
+    result: 'blocked',
+    finalResult: 'blocked'
+  };
+  
+  // Clear the current action
+  newState.currentAction = null;
+  
+  return newState;
+}
+
+// Complete an exchange action by selecting which cards to keep
+export function completeExchange(
+  gameState: GameState,
+  playerId: string,
+  selectedCards: CardType[]
+): GameState {
+  const newState: GameState = JSON.parse(JSON.stringify(gameState));
+  
+  const playerIndex = newState.players.findIndex(p => p.id === playerId);
+  if (playerIndex === -1) return newState;
+  
+  // Ensure player keeps the right number of cards
+  const player = newState.players[playerIndex];
+  const nonRevealedCount = player.cards.filter(card => !card.revealed).length;
+  
+  if (selectedCards.length !== nonRevealedCount) {
+    // Invalid selection - must keep same number of cards
+    return newState;
+  }
+  
+  // Determine all cards that were available for selection
+  const currentCardSelection = newState.cardSelection;
+  if (!currentCardSelection || currentCardSelection.playerId !== playerId || currentCardSelection.reason !== 'exchange') {
+    // Invalid state
+    return newState;
+  }
+  
+  // Replace player's non-revealed cards with selected cards
+  let selectedIdx = 0;
+  for (let i = 0; i < player.cards.length; i++) {
+    if (!player.cards[i].revealed) {
+      // Replace this card with the selected one
+      player.cards[i].type = selectedCards[selectedIdx];
+      selectedIdx++;
+    }
+  }
+  
+  // Return remaining cards to the deck and shuffle
+  const remainingCards = currentCardSelection.validCards.filter(
+    card => !selectedCards.includes(card)
+  );
+  
+  newState.deck = [...newState.deck, ...remainingCards];
+  newState.deck = shuffleDeck(newState.deck);
+  
+  // Clear card selection state
+  newState.cardSelection = undefined;
   
   return newState;
 } 
