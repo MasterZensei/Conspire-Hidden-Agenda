@@ -349,19 +349,24 @@ export function applyAction(
   
   // Move to next player
   let nextPlayerIndex = (playerIndex + 1) % newState.players.length;
+  let loopCount = 0;
   
-  // Skip eliminated players
-  while (newState.players[nextPlayerIndex].eliminated) {
+  // Skip eliminated players, but prevent infinite loop
+  while (newState.players[nextPlayerIndex].eliminated && loopCount < newState.players.length) {
     nextPlayerIndex = (nextPlayerIndex + 1) % newState.players.length;
+    loopCount++;
   }
   
-  newState.currentPlayerIndex = nextPlayerIndex;
+  // Only update current player if we found a valid next player
+  if (loopCount < newState.players.length) {
+    newState.currentPlayerIndex = nextPlayerIndex;
+  }
   
   // Check if game is over
-  const gameOver = checkGameOver(newState);
-  if (gameOver.isOver && gameOver.winner) {
+  const activePlayers = newState.players.filter(p => !p.eliminated);
+  if (activePlayers.length === 1) {
     newState.status = 'completed';
-    newState.winner = gameOver.winner.id;
+    newState.winner = activePlayers[0].id;
   }
   
   return newState;

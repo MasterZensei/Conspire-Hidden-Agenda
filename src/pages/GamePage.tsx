@@ -83,7 +83,7 @@ function GamePlayer({
     >
       <div className="flex justify-between w-full items-center mb-2">
         <div>
-          <h3 className="font-bold text-foreground">{player.displayName}</h3>
+          <h3 className="font-bold text-foreground">{player.display_name}</h3>
           {player.allegiance && (
             <span className={`text-xs ${
               player.allegiance === 'loyalist' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'
@@ -332,7 +332,7 @@ export default function GamePage() {
         
         <div className="w-full max-w-md p-6 bg-card rounded-lg shadow-lg border border-primary mb-6">
           <h2 className="text-2xl font-semibold mb-4 text-card-foreground text-center">
-            {winner ? `${winner.displayName} Wins!` : 'Game Ended'}
+            {winner ? `${winner.display_name} Wins!` : 'Game Ended'}
           </h2>
           
           <div className="space-y-4">
@@ -346,7 +346,7 @@ export default function GamePage() {
                     player.id === gameState.winner ? 'bg-primary/10 border-primary' : 'bg-background border-border'
                   }`}
                 >
-                  <span className="font-medium">{player.displayName}</span>
+                  <span className="font-medium">{player.display_name}</span>
                   {player.id === gameState.winner && (
                     <span className="bg-primary text-primary-foreground px-2 py-1 rounded text-sm">Winner</span>
                   )}
@@ -378,7 +378,7 @@ export default function GamePage() {
               {isUserTurn 
                 ? "It's Your Turn" 
                 : currentPlayer 
-                  ? `Waiting for ${currentPlayer.displayName}'s Turn` 
+                  ? `Waiting for ${currentPlayer.display_name}'s Turn` 
                   : "Waiting..."}
             </span>
           </div>
@@ -450,12 +450,12 @@ export default function GamePage() {
             <div className="p-2 bg-background rounded border border-border mb-2">
               <p className="text-sm">
                 <span className="font-medium">
-                  {players.find(p => p.id === gameState.lastAction?.player)?.displayName || 'Player'}
+                  {players.find(p => p.id === gameState.lastAction?.player)?.display_name || 'Player'}
                 </span> used{' '}
                 <span className="font-medium">{gameState.lastAction.type}</span>
                 {gameState.lastAction.target && (
                   <> on <span className="font-medium">
-                    {players.find(p => p.id === gameState.lastAction?.target)?.displayName || 'Player'}
+                    {players.find(p => p.id === gameState.lastAction?.target)?.display_name || 'Player'}
                   </span></>
                 )}.
                 {gameState.lastAction.result !== 'success' && (

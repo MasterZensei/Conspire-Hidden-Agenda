@@ -186,8 +186,11 @@ export function useLobbies() {
           user_id: userId,
           lobby_id: lobbyId,
           display_name: displayName,
-          coins: 0,
-          cards: []
+          coins: 2, // Default starting coins
+          cards: [
+            { type: 'duke', revealed: false },
+            { type: 'duke', revealed: false }
+          ] // Initial cards will be replaced when game starts
         })
         .select()
         .single();
@@ -208,8 +211,11 @@ export function useLobbies() {
             user_id: userId,
             lobby_id: lobbyId,
             display_name: displayName,
-            coins: 0,
-            cards: []
+            coins: 2, // Default starting coins
+            cards: [
+              { type: 'duke', revealed: false },
+              { type: 'duke', revealed: false }
+            ] // Initial cards will be replaced when game starts
           })
         });
         
@@ -320,15 +326,37 @@ export function useLobby(lobbyId: string) {
   // Update game state
   const updateGameState = useCallback(async (newGameState: GameState) => {
     try {
-      const { data, error } = await supabase
+      // First update the game state in the lobby
+      const { data: lobbyData, error: lobbyError } = await supabase
         .from('lobbies')
         .update({ current_game_state: newGameState })
         .eq('id', lobbyId)
         .select()
         .single();
 
-      if (error) throw error;
-      return data;
+      if (lobbyError) throw lobbyError;
+
+      // Then update each player's state
+      const playerUpdates = newGameState.players.map(player => ({
+        coins: player.coins,
+        cards: player.cards,
+        allegiance: player.allegiance
+      }));
+
+      const { error: playersError } = await supabase
+        .from('players')
+        .upsert(
+          newGameState.players.map((player, i) => ({
+            id: player.id,
+            coins: playerUpdates[i].coins,
+            cards: playerUpdates[i].cards,
+            allegiance: playerUpdates[i].allegiance
+          }))
+        );
+
+      if (playersError) throw playersError;
+      
+      return lobbyData;
     } catch (err) {
       console.error('Error updating game state:', err);
       throw err;

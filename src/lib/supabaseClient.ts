@@ -139,7 +139,6 @@ export type Player = {
   id: string;
   user_id: string;
   display_name: string;
-  displayName: string;
   coins: number;
   cards: Card[];
   eliminated: boolean;
