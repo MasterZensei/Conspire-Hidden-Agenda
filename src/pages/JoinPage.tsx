@@ -1,119 +1,82 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabaseClient';
 import { useLobbies } from '../hooks/useSupabase';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useToast } from '../hooks/use-toast';
+import { supabase } from '../lib/supabaseClient';
 
 export default function JoinPage() {
   const { lobbyId } = useParams<{ lobbyId: string }>();
   const navigate = useNavigate();
-  const { user, signIn, displayName } = useAuth();
+  const { user, signIn } = useAuth();
   const { joinLobby } = useLobbies();
+  const { toast } = useToast();
   
   const [isJoining, setIsJoining] = useState(false);
-  const [name, setName] = useState(displayName || '');
+  const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
-  
-  // Check if the lobby exists
-  useEffect(() => {
-    if (!lobbyId) {
-      setError('Invalid lobby ID');
-      return;
-    }
-    
-    // Check in Supabase
-    async function checkLobby() {
-      try {
-        const { data, error } = await supabase
-          .from('lobbies')
-          .select('*, players(*)')
-          .eq('id', lobbyId)
-          .eq('active', true)
-          .single();
-        
-        if (error) throw error;
-        
-        if (!data) {
-          setError('Lobby not found');
-          return;
-        }
-        
-        const playerCount = data.players?.length || 0;
-        if (playerCount >= data.max_players) {
-          setError('Lobby is full');
-          return;
-        }
-      } catch (err) {
-        console.error('Error checking lobby:', err);
-        setError('Error checking lobby status');
-      }
-    }
-    
-    checkLobby();
-  }, [lobbyId]);
   
   const handleJoinLobby = async (e: FormEvent) => {
     e.preventDefault();
-    setIsJoining(true);
-    setError('');
-
+    if (!name.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please enter a display name"
+      });
+      return;
+    }
+    
+    if (!lobbyId) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Invalid lobby ID"
+      });
+      return;
+    }
+    
     try {
-      // Sign in the user if not already signed in
+      setIsJoining(true);
+      setError(null);
+      
+      // Sign in if not already signed in
       if (!user) {
         await signIn(name);
       }
-
+      
       const currentUser = await supabase.auth.getUser();
       if (!currentUser?.data?.user) {
         throw new Error('Failed to authenticate user');
       }
-
-      if (!lobbyId) {
-        throw new Error('Invalid lobby ID');
-      }
-
-      // First check if the lobby exists and has room
-      const { data: lobby, error: lobbyError } = await supabase
-        .from('lobbies')
-        .select('*, players(*)')
-        .eq('id', lobbyId)
-        .eq('active', true)
-        .single();
-        
-      if (lobbyError) {
-        toast.error('Lobby not found');
-        setError('Lobby not found');
-        setIsJoining(false);
-        return;
-      }
-        
-      const playerCount = lobby.players?.length || 0;
-      if (playerCount >= lobby.max_players) {
-        toast.error('Lobby is full');
-        setError('Lobby is full');
-        setIsJoining(false);
-        return;
-      }
-
+      
       // Join the lobby
-      const player = await joinLobby(
-        lobbyId,
-        currentUser.data.user.id,
-        name
-      );
-
+      await joinLobby(lobbyId, currentUser.data.user.id, name);
+      
       // Save player info to local storage for quick access
-      localStorage.setItem('playerId', player.id);
       localStorage.setItem('playerName', name);
       localStorage.setItem('lobbyId', lobbyId);
-
-      toast.success('Joined lobby successfully!');
+      
+      toast({
+        title: "Success",
+        description: "Successfully joined the lobby!"
+      });
+      
+      // Navigate to the lobby page
       navigate(`/lobby/${lobbyId}`);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error joining lobby:', error);
-      setError(error.message || 'Failed to join lobby');
-      toast.error(error.message || 'Failed to join lobby');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to join lobby';
+      setError(errorMessage);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: errorMessage
+      });
     } finally {
       setIsJoining(false);
     }
@@ -142,42 +105,35 @@ export default function JoinPage() {
       <h1 className="text-4xl font-bold mb-2 text-primary">Coup Online</h1>
       <h2 className="text-2xl font-semibold mb-8 text-foreground">Join Lobby</h2>
       
-      <div className="w-full max-w-md p-6 bg-card rounded-lg shadow-lg border border-border">
-        <form onSubmit={handleJoinLobby} className="space-y-4">
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium text-muted-foreground mb-1">
-              Display Name
-            </label>
-            <input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your display name"
-              className="w-full p-2 rounded border border-input bg-background text-foreground"
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Join Game</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleJoinLobby} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Display Name</Label>
+              <Input
+                id="name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter your display name"
+                disabled={isJoining}
+                required
+              />
+            </div>
+            
+            <Button
+              type="submit"
+              className="w-full"
               disabled={isJoining}
-              required
-            />
-          </div>
-          
-          <button
-            type="submit"
-            className="w-full bg-primary text-primary-foreground rounded p-2 hover:bg-primary/90 transition"
-            disabled={isJoining}
-          >
-            {isJoining ? 'Joining...' : 'Join Lobby'}
-          </button>
-        </form>
-        
-        <div className="mt-4 text-center">
-          <button
-            onClick={() => navigate('/')}
-            className="text-sm text-muted-foreground hover:text-foreground transition"
-          >
-            Return to Home
-          </button>
-        </div>
-      </div>
+            >
+              {isJoining ? 'Joining...' : 'Join Game'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 } 

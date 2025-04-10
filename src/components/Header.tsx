@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Button } from '@/components/ui/button';
 
 export default function Header() {
   const { user, displayName, logout } = useAuth();
@@ -18,12 +19,13 @@ export default function Header() {
     <header className="w-full bg-card shadow-sm p-4 border-b border-border">
       <div className="max-w-6xl mx-auto flex justify-between items-center">
         <div className="flex items-center">
-          <button 
+          <Button
+            variant="ghost"
+            className="text-2xl font-bold text-primary hover:text-primary/90"
             onClick={() => navigate('/')}
-            className="text-2xl font-bold text-primary hover:text-primary/90 transition"
           >
             Coup Online
-          </button>
+          </Button>
         </div>
         
         {user && (
@@ -31,12 +33,13 @@ export default function Header() {
             <span className="text-sm text-muted-foreground">
               Signed in as <span className="font-medium text-foreground">{displayName}</span>
             </span>
-            <button
+            <Button
+              variant="ghost"
+              className="text-sm text-destructive hover:text-destructive/90"
               onClick={handleSignOut}
-              className="text-sm text-destructive hover:text-destructive/90 transition"
             >
               Sign Out
-            </button>
+            </Button>
           </div>
         )}
       </div>

@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Toaster } from 'sonner';
+import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Import pages
@@ -76,7 +76,7 @@ function App() {
     <AuthProvider>
       <Router>
         <AppRoutes />
-        <Toaster position="top-center" />
+        <Toaster />
       </Router>
     </AuthProvider>
   );

@@ -173,6 +173,12 @@ export type GameState = {
     target?: string;
     result: 'success' | 'failed' | 'challenged' | 'blocked';
   } | null;
+  cardSelection?: {
+    playerId: string;
+    reason: 'challenge' | 'block';
+    validCards: CardType[];
+    action: string;
+  };
   winner: string | null;
   treasury: number;
 };
