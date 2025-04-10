@@ -30,7 +30,12 @@ export function useLobbies() {
   // Create a new lobby
   const createLobby = useCallback(async (name: string, hostId: string, settings: GameSettings) => {
     try {
+      console.log('Creating lobby with host ID:', hostId);
+      console.log('Lobby settings:', settings);
+      
       const lobbyId = nanoid(10);
+      console.log('Generated lobbyId:', lobbyId);
+      
       const { data, error } = await supabase
         .from('lobbies')
         .insert({
@@ -45,10 +50,26 @@ export function useLobbies() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error creating lobby:', error);
+        console.error('Error details:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
+        throw error;
+      }
+      
+      console.log('Lobby created successfully:', data);
       return data;
     } catch (err) {
       console.error('Error creating lobby:', err);
+      if (err instanceof Error) {
+        console.error('Error message:', err.message);
+        console.error('Error name:', err.name);
+        console.error('Error stack:', err.stack);
+      }
       throw err;
     }
   }, []);

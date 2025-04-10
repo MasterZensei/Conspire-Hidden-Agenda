@@ -225,10 +225,20 @@ export const signInAnonymously = async () => {
     const { data, error } = await supabase.auth.signUp({
       email: demoEmail,
       password: demoPassword,
+      options: {
+        data: {
+          display_name: 'Demo User'
+        }
+      }
     });
     
     if (error) {
       console.error('Error with anonymous sign-in:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        status: error.status
+      });
       
       // Fall back to a local demo user if Supabase auth fails
       console.log('Falling back to local demo user');
@@ -236,7 +246,7 @@ export const signInAnonymously = async () => {
         id: `demo_${randomId}`,
         email: demoEmail,
         app_metadata: {},
-        user_metadata: {},
+        user_metadata: { display_name: 'Demo User' },
         aud: 'authenticated',
         created_at: new Date().toISOString()
       };
@@ -250,6 +260,25 @@ export const signInAnonymously = async () => {
     }
     
     console.log('Created anonymous user:', data.user);
+    // Wait a moment for the session to be established
+    if (data.session) {
+      console.log('Session established:', !!data.session);
+    } else {
+      console.log('No session established, might need to wait for confirmation');
+      // Try to sign in with the credentials we just created
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: demoEmail,
+        password: demoPassword,
+      });
+      
+      if (signInError) {
+        console.error('Error signing in with newly created credentials:', signInError);
+      } else if (signInData.session) {
+        console.log('Successfully signed in with credentials');
+        return { user: signInData.user, session: signInData.session };
+      }
+    }
+    
     return { user: data.user, session: data.session };
   } catch (e) {
     console.error('Unexpected error during anonymous sign-in:', e);

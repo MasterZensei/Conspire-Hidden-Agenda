@@ -74,6 +74,15 @@ export default function HomePage() {
     try {
       setIsCreatingLobby(true);
       
+      console.log('Creating lobby with user:', user);
+      
+      // Ensure we have a valid user ID
+      if (!user.id) {
+        console.error('User has no ID');
+        toast.error('Authentication issue. Please try signing in again.');
+        return;
+      }
+      
       // Define game settings
       const gameSettings: GameSettings = {
         expansions: {
@@ -90,9 +99,17 @@ export default function HomePage() {
       
       // Navigate to the lobby
       navigate(`/lobby/${lobby.id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Create lobby error:', error);
-      toast.error('Failed to create lobby. Please try again.');
+      
+      // Check for specific permission errors
+      if (error?.message?.includes('permission denied') || error?.code === '42501') {
+        toast.error('Permission denied. This could be due to authentication issues.');
+      } else if (error?.code === '23505') {
+        toast.error('A lobby with this name already exists.');
+      } else {
+        toast.error('Failed to create lobby. Please try again.');
+      }
     } finally {
       setIsCreatingLobby(false);
     }

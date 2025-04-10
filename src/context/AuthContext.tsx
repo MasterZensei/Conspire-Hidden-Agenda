@@ -31,7 +31,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Check if we have a session
         const { data: { session } } = await supabase.auth.getSession();
         
+        console.log('Initial auth session check:', session ? 'Session found' : 'No session');
+        
         if (session?.user) {
+          console.log('Setting user from session:', {
+            id: session.user.id,
+            email: session.user.email
+          });
           setUser(session.user);
         }
       } catch (err) {
@@ -46,10 +52,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
+        console.log('Auth state changed:', event, session ? 'Session exists' : 'No session');
+        
         if (session?.user) {
+          console.log('User authenticated:', {
+            id: session.user.id,
+            email: session.user.email
+          });
           setUser(session.user);
         } else {
+          console.log('User signed out or session expired');
           setUser(null);
         }
         setLoading(false);
@@ -86,6 +99,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error(error);
         throw error;
       }
+      
+      // Confirm the user ID exists and is valid
+      if (!user.id) {
+        console.error('User has no ID, creating fallback ID');
+        (user as any).id = `demo_${Math.random().toString(36).substring(2, 11)}`;
+      }
+      
+      console.log('Authenticated user with ID:', user.id);
       
       // Set the user state with the newly authenticated user
       setUser(user);
