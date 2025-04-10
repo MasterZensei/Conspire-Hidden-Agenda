@@ -182,14 +182,26 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 // Helper function to anonymously sign in
 export const signInAnonymously = async () => {
-  const { data, error } = await supabase.auth.signInAnonymously();
-  
-  if (error) {
-    console.error('Error signing in anonymously:', error);
-    throw error;
+  try {
+    console.log('Attempting anonymous sign-in with Supabase...');
+    const { data, error } = await supabase.auth.signInAnonymously();
+    
+    if (error) {
+      console.error('Error signing in anonymously:', error);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.status,
+        name: error.name
+      });
+      throw error;
+    }
+    
+    console.log('Sign-in successful:', data);
+    return { user: data.user, session: data.session };
+  } catch (e) {
+    console.error('Unexpected error during sign-in:', e);
+    throw e;
   }
-  
-  return { user: data.user, session: data.session };
 };
 
 // Get the current user

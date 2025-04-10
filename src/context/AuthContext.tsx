@@ -76,16 +76,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Store display name
       setDisplayName(name);
       
+      console.log('Calling signInAnonymously...');
       // Sign in anonymously
       const { user } = await signInAnonymously();
       
+      console.log('Received user from signInAnonymously:', user);
       if (!user) {
-        throw new Error('Failed to sign in anonymously');
+        const error = new Error('Failed to sign in anonymously - user is null');
+        console.error(error);
+        throw error;
       }
       
       return user;
     } catch (err) {
       console.error('Error signing in:', err);
+      if (err instanceof Error) {
+        console.error('Error message:', err.message);
+        console.error('Error stack:', err.stack);
+      }
       setError(err as Error);
       throw err;
     } finally {
