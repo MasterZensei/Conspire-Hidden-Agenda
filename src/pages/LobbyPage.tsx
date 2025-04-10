@@ -4,26 +4,46 @@ import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
 import { useLobby } from '../hooks/useSupabase';
 import { initializeGameState } from '../lib/game/gameRules';
-import { Player } from '../lib/supabaseClient';
+import { Player, localGameStorage } from '../lib/supabaseClient';
 
 export default function LobbyPage() {
   const { lobbyId } = useParams<{ lobbyId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, displayName } = useAuth();
   const { lobby, players, loading, error, startGame } = useLobby(lobbyId || '');
   
+  const [localLobby, setLocalLobby] = useState<any | null>(null);
+  const [localPlayers, setLocalPlayers] = useState<Player[]>([]);
   const [isStarting, setIsStarting] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   
-  const isHost = lobby?.host_id === user?.id;
+  const isUsingLocalLobby = user?.id?.startsWith('demo_');
+  const effectiveLobby = isUsingLocalLobby ? localLobby : lobby;
+  const effectivePlayers = isUsingLocalLobby ? localPlayers : players;
+  
+  // Load the local lobby if we're using demo mode
+  useEffect(() => {
+    if (isUsingLocalLobby && lobbyId) {
+      const storedLobbies = JSON.parse(localStorage.getItem('lobbies') || '[]');
+      const matchingLobby = storedLobbies.find((l: any) => l.id === lobbyId);
+      
+      if (matchingLobby) {
+        console.log('Found local lobby:', matchingLobby);
+        setLocalLobby(matchingLobby);
+        setLocalPlayers(matchingLobby.players || []);
+      }
+    }
+  }, [isUsingLocalLobby, lobbyId]);
+  
+  const isHost = effectiveLobby?.host_id === user?.id;
   const shareableLink = `${window.location.origin}/join/${lobbyId}`;
   
   // If the game has started, redirect to game page
   useEffect(() => {
-    if (lobby?.current_game_state && lobby.current_game_state.status !== 'waiting') {
+    if (effectiveLobby?.current_game_state && effectiveLobby.current_game_state.status !== 'waiting') {
       navigate(`/game/${lobbyId}`);
     }
-  }, [lobby, lobbyId, navigate]);
+  }, [effectiveLobby, lobbyId, navigate]);
   
   // Copy link to clipboard
   const copyLink = () => {
@@ -35,9 +55,9 @@ export default function LobbyPage() {
     }, 2000);
   };
   
-  // Start the game
+  // Start the game - works with both local and remote
   const handleStartGame = async () => {
-    if (!lobby || players.length < 2) {
+    if (!effectiveLobby || effectivePlayers.length < 2) {
       toast.error('Need at least 2 players to start');
       return;
     }
@@ -47,15 +67,38 @@ export default function LobbyPage() {
       
       // Initialize the game state
       const initialGameState = initializeGameState(
-        players as Player[],
-        lobby.game_settings
+        effectivePlayers as Player[],
+        effectiveLobby.game_settings
       );
       
-      // Update the lobby with the new game state
-      await startGame(initialGameState);
-      
-      toast.success('Game started!');
-      navigate(`/game/${lobbyId}`);
+      if (isUsingLocalLobby) {
+        // Update the local lobby
+        const storedLobbies = JSON.parse(localStorage.getItem('lobbies') || '[]');
+        const updatedLobbies = storedLobbies.map((l: any) => {
+          if (l.id === lobbyId) {
+            return {
+              ...l,
+              current_game_state: initialGameState
+            };
+          }
+          return l;
+        });
+        
+        localStorage.setItem('lobbies', JSON.stringify(updatedLobbies));
+        setLocalLobby({
+          ...localLobby,
+          current_game_state: initialGameState
+        });
+        
+        toast.success('Game started!');
+        navigate(`/game/${lobbyId}`);
+      } else {
+        // Update the remote lobby with the new game state
+        await startGame(initialGameState);
+        
+        toast.success('Game started!');
+        navigate(`/game/${lobbyId}`);
+      }
     } catch (error) {
       console.error('Error starting game:', error);
       toast.error('Failed to start the game. Please try again.');
@@ -64,54 +107,76 @@ export default function LobbyPage() {
     }
   };
   
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-pulse text-xl text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
-  
-  if (error || !lobby) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 px-4">
-        <div className="w-full max-w-md p-6 bg-card rounded-lg shadow-lg border border-destructive">
-          <h2 className="text-2xl font-semibold mb-4 text-destructive">Error</h2>
-          <p className="text-muted-foreground mb-4">
-            {error?.message || 'This lobby does not exist or has been closed.'}
-          </p>
-          <button
-            onClick={() => navigate('/')}
-            className="w-full bg-primary text-primary-foreground rounded p-2 hover:bg-primary/90 transition"
-          >
-            Return to Home
-          </button>
+  // For demo mode, never show loading or error states
+  if (isUsingLocalLobby) {
+    if (!localLobby) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 px-4">
+          <div className="w-full max-w-md p-6 bg-card rounded-lg shadow-lg border border-destructive">
+            <h2 className="text-2xl font-semibold mb-4 text-destructive">Lobby Not Found</h2>
+            <p className="text-muted-foreground mb-4">
+              This lobby does not exist or has been closed.
+            </p>
+            <button
+              onClick={() => navigate('/')}
+              className="w-full bg-primary text-primary-foreground rounded p-2 hover:bg-primary/90 transition"
+            >
+              Return to Home
+            </button>
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
+  } else {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-pulse text-xl text-muted-foreground">Loading...</div>
+        </div>
+      );
+    }
+    
+    if (error || !lobby) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 px-4">
+          <div className="w-full max-w-md p-6 bg-card rounded-lg shadow-lg border border-destructive">
+            <h2 className="text-2xl font-semibold mb-4 text-destructive">Error</h2>
+            <p className="text-muted-foreground mb-4">
+              {error?.message || 'This lobby does not exist or has been closed.'}
+            </p>
+            <button
+              onClick={() => navigate('/')}
+              className="w-full bg-primary text-primary-foreground rounded p-2 hover:bg-primary/90 transition"
+            >
+              Return to Home
+            </button>
+          </div>
+        </div>
+      );
+    }
   }
   
   return (
     <div className="flex flex-col items-center justify-center py-12 px-4">
       <h1 className="text-4xl font-bold mb-2 text-primary">Coup Online</h1>
-      <h2 className="text-2xl font-semibold mb-8 text-foreground">Lobby: {lobby.name}</h2>
+      <h2 className="text-2xl font-semibold mb-8 text-foreground">Lobby: {effectiveLobby.name}</h2>
       
       <div className="w-full max-w-xl p-6 bg-card rounded-lg shadow-lg border border-border mb-6">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-semibold text-card-foreground">Players</h3>
           <span className="text-sm text-muted-foreground">
-            {players.length} / {lobby.max_players}
+            {effectivePlayers.length} / {effectiveLobby.max_players}
           </span>
         </div>
         
         <div className="space-y-2 mb-6">
-          {players.map((player) => (
+          {effectivePlayers.map((player) => (
             <div 
               key={player.id} 
               className="flex items-center py-2 px-3 bg-background rounded border border-border"
             >
               <span className="font-medium">{player.display_name}</span>
-              {player.user_id === lobby.host_id && (
+              {player.user_id === effectiveLobby.host_id && (
                 <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-1 rounded">Host</span>
               )}
               {player.user_id === user?.id && (
@@ -121,80 +186,44 @@ export default function LobbyPage() {
           ))}
         </div>
         
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">Invite Players</h3>
-            <div className="flex">
+        <div className="flex flex-col gap-3">
+          <div className="bg-card p-3 rounded-md border border-border">
+            <p className="text-sm text-muted-foreground mb-2">Share this link to invite players:</p>
+            <div className="flex gap-2">
               <input
                 type="text"
                 value={shareableLink}
                 readOnly
-                className="flex-grow p-2 rounded-l border border-input bg-background text-foreground text-sm"
+                className="flex-1 p-2 text-sm bg-background border border-input rounded"
               />
               <button
                 onClick={copyLink}
-                className="bg-secondary text-secondary-foreground rounded-r px-3 hover:bg-secondary/90 transition"
+                className="bg-secondary text-secondary-foreground px-3 py-1 rounded text-sm"
               >
                 {isCopied ? 'Copied!' : 'Copy'}
               </button>
             </div>
           </div>
           
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground mb-1">Game Settings</h3>
-            <div className="text-sm text-foreground bg-background p-3 rounded border border-border">
-              <p>Max Players: {lobby.max_players}</p>
-              <p>Expansions:</p>
-              <ul className="list-disc list-inside pl-2 text-muted-foreground">
-                {lobby.game_settings.expansions.reformation && <li>Reformation</li>}
-                {lobby.game_settings.expansions.inquisitor && <li>Inquisitor</li>}
-                {lobby.game_settings.expansions.anarchy && <li>Anarchy</li>}
-                {!lobby.game_settings.expansions.reformation && 
-                 !lobby.game_settings.expansions.inquisitor && 
-                 !lobby.game_settings.expansions.anarchy && <li>None (Base Game)</li>}
-              </ul>
-            </div>
-          </div>
+          {isHost && (
+            <button
+              onClick={handleStartGame}
+              disabled={isStarting || effectivePlayers.length < 2}
+              className="w-full bg-primary text-primary-foreground py-2 rounded font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isStarting ? 'Starting Game...' : 'Start Game'}
+            </button>
+          )}
         </div>
       </div>
       
-      {isHost && (
-        <div className="w-full max-w-xl">
-          <button
-            onClick={handleStartGame}
-            disabled={isStarting || players.length < 2}
-            className={`w-full bg-primary text-primary-foreground rounded p-3 hover:bg-primary/90 transition ${
-              (isStarting || players.length < 2) ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            {isStarting 
-              ? 'Starting Game...' 
-              : players.length < 2 
-                ? 'Need at Least 2 Players to Start' 
-                : 'Start Game'}
-          </button>
-          {players.length < 2 && (
-            <p className="text-sm text-muted-foreground text-center mt-2">
-              Waiting for more players to join...
-            </p>
-          )}
-        </div>
-      )}
-      
-      {!isHost && (
-        <div className="w-full max-w-xl text-center">
-          <p className="text-muted-foreground">
-            Waiting for the host to start the game...
+      <div className="text-center text-sm text-muted-foreground">
+        {isUsingLocalLobby && (
+          <p className="bg-yellow-50 text-yellow-800 p-2 rounded">
+            Playing in demo mode. Game data will be stored locally.
           </p>
-        </div>
-      )}
-      
-      <button
-        onClick={() => navigate('/')}
-        className="mt-6 text-sm text-muted-foreground hover:text-foreground transition"
-      >
-        Return to Home
-      </button>
+        )}
+      </div>
     </div>
   );
 } 

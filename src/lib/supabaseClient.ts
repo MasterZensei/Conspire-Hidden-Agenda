@@ -214,72 +214,23 @@ export const signInAnonymously = async () => {
   try {
     console.log('Setting up anonymous authentication...');
     
-    // Generate random email and password for demo user
+    // Generate random ID for demo user
     const randomId = Math.random().toString(36).substring(2, 11);
-    const demoEmail = `anonymous_${randomId}@example.com`;
-    const demoPassword = Math.random().toString(36).substring(2, 15);
     
-    console.log(`Creating demo user with email: ${demoEmail}`);
+    // Create a fake demo user
+    const demoUser = {
+      id: `demo_${randomId}`,
+      email: null,
+      app_metadata: {},
+      user_metadata: { display_name: 'Demo User' },
+      aud: 'authenticated',
+      created_at: new Date().toISOString()
+    };
     
-    // Use Supabase's sign-up method
-    const { data, error } = await supabase.auth.signUp({
-      email: demoEmail,
-      password: demoPassword,
-      options: {
-        data: {
-          display_name: 'Demo User'
-        }
-      }
-    });
+    console.log('Created demo user:', demoUser);
+    localStorage.setItem('demoUser', JSON.stringify(demoUser));
     
-    if (error) {
-      console.error('Error with anonymous sign-in:', error);
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        status: error.status
-      });
-      
-      // Fall back to a local demo user if Supabase auth fails
-      console.log('Falling back to local demo user');
-      const fallbackUser = {
-        id: `demo_${randomId}`,
-        email: demoEmail,
-        app_metadata: {},
-        user_metadata: { display_name: 'Demo User' },
-        aud: 'authenticated',
-        created_at: new Date().toISOString()
-      };
-      
-      return { user: fallbackUser as unknown as User, session: null };
-    }
-    
-    if (!data.user) {
-      console.error('No user returned from anonymous sign-in');
-      throw new Error('Failed to sign in anonymously');
-    }
-    
-    console.log('Created anonymous user:', data.user);
-    // Wait a moment for the session to be established
-    if (data.session) {
-      console.log('Session established:', !!data.session);
-    } else {
-      console.log('No session established, might need to wait for confirmation');
-      // Try to sign in with the credentials we just created
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: demoEmail,
-        password: demoPassword,
-      });
-      
-      if (signInError) {
-        console.error('Error signing in with newly created credentials:', signInError);
-      } else if (signInData.session) {
-        console.log('Successfully signed in with credentials');
-        return { user: signInData.user, session: signInData.session };
-      }
-    }
-    
-    return { user: data.user, session: data.session };
+    return { user: demoUser as unknown as User, session: null };
   } catch (e) {
     console.error('Unexpected error during anonymous sign-in:', e);
     throw e;
@@ -308,6 +259,49 @@ export const signOut = async () => {
   }
 };
 
+// Storage for local game data when Supabase isn't available
+export const localGameStorage = {
+  lobbies: [] as any[],
+  
+  // Create a lobby locally
+  createLobby: (name: string, hostId: string, settings: GameSettings, displayName: string) => {
+    try {
+      const lobbyId = Math.random().toString(36).substring(2, 12);
+      
+      const newLobby = {
+        id: lobbyId,
+        name,
+        host_id: hostId,
+        max_players: settings.maxPlayers,
+        active: true,
+        game_settings: settings,
+        current_game_state: null,
+        created_at: new Date().toISOString(),
+        players: [{
+          id: Math.random().toString(36).substring(2, 12),
+          user_id: hostId,
+          lobby_id: lobbyId,
+          display_name: displayName,
+          created_at: new Date().toISOString(),
+          coins: 0,
+          cards: []
+        }]
+      };
+      
+      // Add to local storage
+      const lobbies = JSON.parse(localStorage.getItem('lobbies') || '[]');
+      lobbies.push(newLobby);
+      localStorage.setItem('lobbies', JSON.stringify(lobbies));
+      
+      console.log('Created local lobby:', newLobby);
+      return newLobby;
+    } catch (e) {
+      console.error('Error creating local lobby:', e);
+      throw e;
+    }
+  }
+};
+
 // Direct database functions with edge functions
 export const createLobbyDirectly = async (
   lobbyName: string,
@@ -316,35 +310,10 @@ export const createLobbyDirectly = async (
   displayName: string
 ) => {
   try {
-    console.log('Using direct lobby creation function');
-    
-    // This will call a Supabase Edge Function that bypasses RLS
-    const response = await fetch(`${supabaseUrl}/functions/v1/create-lobby`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`
-      },
-      body: JSON.stringify({
-        name: lobbyName,
-        host_id: hostId,
-        max_players: settings.maxPlayers,
-        game_settings: settings,
-        display_name: displayName
-      })
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Error from edge function:', errorData);
-      throw new Error(`Failed to create lobby: ${errorData.error || response.statusText}`);
-    }
-    
-    const data = await response.json();
-    console.log('Edge function response:', data);
-    return data.lobby;
+    // Just use the local storage version since the edge function doesn't exist
+    return localGameStorage.createLobby(lobbyName, hostId, settings, displayName);
   } catch (e) {
-    console.error('Error calling edge function:', e);
+    console.error('Error creating lobby:', e);
     throw e;
   }
 }; 
